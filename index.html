@@ -8,8 +8,14 @@
       body {
         margin: 0;
         height: 100vh;
-        background: linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.6)),
+        background: radial-gradient(
+            circle at center,
+            rgba(0, 0, 0, 0.15) 0%,
+            rgba(0, 0, 0, 0.45) 60%,
+            rgba(0, 0, 0, 0.75) 100%
+          ),
           url("./images/torii.jpg") center / cover no-repeat;
+
         color: #fff;
         display: flex;
         align-items: center;
