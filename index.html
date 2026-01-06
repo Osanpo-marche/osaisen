@@ -1,50 +1,53 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <title>今日の大吉</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {
-      margin: 0;
-      height: 100vh;
-      background:
-        linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.85)),
-        url("./images/torii.jpg") center / cover no-repeat;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: serif;
-      overflow: hidden;
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <title>今日の大吉</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        margin: 0;
+        height: 100vh;
+        background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.85)),
+          url("./images/torii.jpg") center / cover no-repeat;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: serif;
+        overflow: hidden;
+      }
 
-    .box {
-      text-align: center;
-      animation: fadeIn 2.5s ease;
-      transform: translateY(-5%);
-    }
+      .box {
+        text-align: center;
+        animation: fadeIn 2.5s ease;
+        transform: translateY(-5%);
+      }
 
-    .message {
-      font-size: 18px;
-      line-height: 2;
-      letter-spacing: 0.15em;
-      opacity: 0.9;
-    }
+      .message {
+        font-size: 18px;
+        line-height: 2;
+        letter-spacing: 0.15em;
+        opacity: 0.9;
+      }
 
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-  </style>
-</head>
-<body>
-  <div class="box">
-    <div class="message">
-      汝、<br>
-      今日ここに来たこと自体が<br>
-      すでに運の巡りなり
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <div class="message">
+        汝、<br />
+        今日ここに来たこと自体が<br />
+        すでに運の巡りなり
+      </div>
     </div>
-  </div>
-</body>
+  </body>
 </html>
