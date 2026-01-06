@@ -5,16 +5,26 @@
     <title>今日の大吉</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
+      html,
+      body {
+        height: 100%;
+      }
+
       body {
         margin: 0;
-        height: 100vh;
+        min-height: 100vh;
 
-        background-image: url("./images/torii.jpg");
+        /* 画像（キャッシュ見分け用に ?v=1 を付ける） */
+        background-image: url("./images/torii.jpg?v=1");
         background-repeat: no-repeat;
         background-size: cover;
 
-        /* ← これだけに集中 */
-        background-position: 60% 40%;
+        /* ここが本題：pxで左右をズラす（- だと “右に寄る” 方向になりやすい） */
+        --shift-x: -120px; /* ← まずは大きく動かす */
+        --shift-y: 0px;
+
+        background-position: calc(50% + var(--shift-x))
+          calc(40% + var(--shift-y));
 
         color: #fff;
         display: flex;
@@ -44,10 +54,13 @@
         opacity: 0.9;
       }
 
-      /* スマホ用：鳥居の中心を少し右下に寄せる */
+      /* スマホだけ別のズラし量にする */
       @media (max-width: 768px) {
         body {
-          background-position: 23% 60%;
+          --shift-x: -40px; /* ← スマホは控えめに */
+          --shift-y: 0px;
+          background-position: calc(50% + var(--shift-x))
+            calc(55% + var(--shift-y));
         }
       }
     </style>
