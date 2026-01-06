@@ -5,47 +5,51 @@
     <title>今日の大吉</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
-      body {
-        margin: 0;
-        height: 100vh;
-        background: url("./images/torii.jpg") center / cover no-repeat;
+          body {
+            margin: 0;
+            height: 100vh;
+            background: url("./images/torii.jpg") center / cover no-repeat;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: serif;
+            overflow: hidden;
+          }
 
-        color: #fff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: serif;
-        overflow: hidden;
-      }
+          @media (max-width: 768px) {
+          body {
+             background-position: 55% 60%;
+          }
 
-      .box {
-        text-shadow: 0 0 12px rgba(255, 255, 255, 0.4),
-          0 0 24px rgba(0, 0, 0, 0.8);
-        text-align: center;
-      }
+          .box {
+            text-shadow: 0 0 12px rgba(255, 255, 255, 0.4),
+              0 0 24px rgba(0, 0, 0, 0.8);
+            text-align: center;
+          }
 
-      .lead {
-        font-size: 20px;
-        margin-bottom: 24px;
-        letter-spacing: 0.15em;
-      }
+          .lead {
+            font-size: 20px;
+            margin-bottom: 24px;
+            letter-spacing: 0.15em;
+          }
 
-      .message {
-        font-size: 18px;
-        color: #f5f7ff;
-        line-height: 2.1;
-        letter-spacing: 0.15em;
-        opacity: 0.9;
-      }
+          .message {
+            font-size: 18px;
+            color: #f5f7ff;
+            line-height: 2.1;
+            letter-spacing: 0.15em;
+            opacity: 0.9;
+          }
 
-      @keyframes fadeIn {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
-      }
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+            }
+            to {
+              opacity: 1;
+            }
+          }
     </style>
   </head>
   <body>
