@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
     <title>今日の大吉</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
     <style>
       html,
       body {
@@ -14,13 +15,11 @@
         margin: 0;
         min-height: 100vh;
 
-        /* 画像（キャッシュ見分け用に ?v=1 を付ける） */
         background-image: url("./images/torii.jpg?v=1");
         background-repeat: no-repeat;
         background-size: cover;
 
-        /* ここが本題：pxで左右をズラす（- だと “右に寄る” 方向になりやすい） */
-        --shift-x: -120px; /* ← まずは大きく動かす */
+        --shift-x: 35px;
         --shift-y: 0px;
 
         background-position: calc(50% + var(--shift-x))
@@ -32,11 +31,17 @@
         justify-content: center;
         font-family: serif;
         overflow: hidden;
+
+        transform-origin: 50% 50%;
+
+        -webkit-user-select: none;
+        user-select: none;
       }
 
       .box {
         text-align: center;
-        text-shadow: 0 0 12px rgba(255, 255, 255, 0.35),
+        text-shadow:
+          0 0 12px rgba(255, 255, 255, 0.35),
           0 0 24px rgba(0, 0, 0, 0.85);
       }
 
@@ -44,6 +49,7 @@
         font-size: 20px;
         margin-bottom: 24px;
         letter-spacing: 0.15em;
+        transform: translateX(8px);
       }
 
       .message {
@@ -54,18 +60,347 @@
         opacity: 0.9;
       }
 
-      /* スマホだけ別のズラし量にする */
       @media (max-width: 768px) {
         body {
-          --shift-x: -40px; /* ← スマホは控えめに */
+          --shift-x: 40px;
           --shift-y: 0px;
+
           background-position: calc(50% + var(--shift-x))
             calc(55% + var(--shift-y));
         }
       }
+
+      .draw-wrap {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+        display: flex;
+        justify-content: center;
+        pointer-events: none;
+        z-index: 20;
+      }
+
+      #drawBtn {
+        pointer-events: auto;
+        width: min(92vw, 520px);
+        height: 56px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(0, 0, 0, 0.35);
+        color: rgba(255, 255, 255, 0.92);
+        font-family: serif;
+        font-size: 16px;
+        letter-spacing: 0.18em;
+        cursor: pointer;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        transition:
+          transform 0.12s ease,
+          opacity 0.12s ease;
+      }
+
+      #drawBtn:active {
+        transform: translateY(1px) scale(0.995);
+      }
+
+      #drawBtn[disabled] {
+        opacity: 0.55;
+        cursor: default;
+      }
+
+      #resultOverlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 220ms ease;
+        z-index: 30;
+      }
+
+      #resultOverlay.show {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      #resultCard {
+        width: min(92vw, 520px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(0, 0, 0, 0.45);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55);
+        padding: 18px 18px 16px;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.95);
+        letter-spacing: 0.12em;
+      }
+
+      #resultTitle {
+        font-size: 36px;
+        margin: 2px 0 10px;
+
+        color: rgba(255, 255, 255, 0.98);
+        text-shadow:
+          0 0 6px rgba(255, 255, 255, 0.55),
+          0 0 18px rgba(120, 160, 255, 0.22),
+          0 0 34px rgba(255, 255, 255, 0.14);
+      }
+
+      #resultMsg {
+        font-size: 16px;
+        line-height: 1.9;
+        opacity: 0.92;
+        margin: 0;
+        white-space: pre-wrap;
+        margin: 0 0 28px;
+
+        color: rgba(255, 255, 255, 0.93);
+        text-shadow:
+          0 0 5px rgba(255, 255, 255, 0.33),
+          0 0 14px rgba(120, 160, 255, 0.14);
+      }
+
+      body.distort {
+        filter: url(#distort) blur(0.35px) contrast(1.05) saturate(1.1);
+        animation: wobble 1600ms ease-in-out 1;
+      }
+
+      @keyframes wobble {
+        0% {
+          transform: scale(1) skewX(0deg) skewY(0deg);
+        }
+        20% {
+          transform: scale(1.01) skewX(0.8deg) skewY(-0.6deg);
+        }
+        45% {
+          transform: scale(0.995) skewX(-1.2deg) skewY(0.9deg);
+        }
+        70% {
+          transform: scale(1.008) skewX(0.6deg) skewY(-0.4deg);
+        }
+        100% {
+          transform: scale(1) skewX(0deg) skewY(0deg);
+        }
+      }
+
+      #noise {
+        position: fixed;
+        inset: -20%;
+        background: repeating-linear-gradient(
+          0deg,
+          rgba(255, 255, 255, 0),
+          rgba(255, 255, 255, 0) 2px,
+          rgba(255, 255, 255, 0.03) 3px,
+          rgba(255, 255, 255, 0) 5px
+        );
+        opacity: 0;
+        mix-blend-mode: screen;
+        pointer-events: none;
+        z-index: 25;
+        transform: translateZ(0);
+      }
+
+      body.distort #noise {
+        opacity: 0.85;
+        animation: noiseMove 1600ms linear 1;
+      }
+
+      @keyframes noiseMove {
+        0% {
+          transform: translate3d(0, 0, 0);
+        }
+        100% {
+          transform: translate3d(-12px, 18px, 0);
+        }
+      }
+
+      #osaisenOverlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 220ms ease;
+        z-index: 40;
+        background: rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
+      }
+
+      #osaisenOverlay.show {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      #osaisenCard {
+        width: min(92vw, 520px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
+        padding: 18px 18px 16px;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.95);
+        letter-spacing: 0.12em;
+      }
+
+      #osaisenTitle {
+        font-size: 20px;
+        margin: 2px 0 14px;
+      }
+
+      #osaisenMsg {
+        font-size: 14px;
+        line-height: 1.75;
+        opacity: 0.92;
+        margin: 0 0 30px;
+        letter-spacing: 0.1em;
+      }
+
+      #osaisenTitle {
+        margin-bottom: 16px;
+      }
+
+      .kyou-word {
+        color: #4d59ff;
+        text-shadow:
+          0 0 8px rgba(77, 89, 255, 0.35),
+          0 0 18px rgba(77, 89, 255, 0.22);
+      }
+
+      #osaisenMsg {
+        line-height: 1.55;
+      }
+
+      #osaisenMsg br.gap {
+        display: block;
+        content: "";
+        margin-top: 14px;
+      }
+
+      .osaisen-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      .btn {
+        width: min(92vw, 360px);
+        height: 48px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(255, 255, 255, 0.14);
+        color: rgba(255, 255, 255, 0.92);
+        font-family: serif;
+        font-size: 14px;
+        letter-spacing: 0.12em;
+        cursor: pointer;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+
+      .btn:active {
+        transform: translateY(1px) scale(0.995);
+      }
+      .btn.primary {
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      .note {
+        margin-top: 10px;
+        margin-bottom: 22px;
+        font-size: 12px;
+        opacity: 0.7;
+        letter-spacing: 0.08em;
+        line-height: 1.6;
+      }
+
+      /* ===== 共有UI（凶モーダル内） ===== */
+      .shareRow {
+        margin-top: 0px;
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .shareBtn {
+        height: 40px;
+        padding: 0 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.92);
+        font-family: serif;
+        font-size: 13px;
+        letter-spacing: 0.12em;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+
+      .shareBtn:active {
+        transform: translateY(1px) scale(0.995);
+      }
+
+      .shareMsg {
+        width: 100%;
+        margin-top: 6px;
+        font-size: 12px;
+        opacity: 0.8;
+        letter-spacing: 0.08em;
+        line-height: 1.4;
+        text-align: center;
+      }
+      .shareHint {
+        width: 100%;
+        margin-top: 4px;
+        font-size: 11px;
+        opacity: 0.65;
+        letter-spacing: 0.06em;
+        line-height: 1.4;
+        text-align: center;
+      }
     </style>
   </head>
+
   <body>
+    <svg
+      width="0"
+      height="0"
+      style="position: absolute; left: -9999px; top: -9999px"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <filter id="distort">
+        <feTurbulence
+          id="turbulence"
+          type="fractalNoise"
+          baseFrequency="0.012"
+          numOctaves="2"
+          seed="2"
+        />
+        <feDisplacementMap in="SourceGraphic" scale="18" />
+      </filter>
+    </svg>
+
+    <div id="noise"></div>
+
     <div class="box">
       <div class="lead">汝、</div>
       <div class="message">
@@ -73,5 +408,608 @@
         すでに運の巡りなり
       </div>
     </div>
+
+    <div class="draw-wrap">
+      <button id="drawBtn" type="button">おみくじを引く</button>
+    </div>
+
+    <div id="resultOverlay" aria-live="polite" aria-atomic="true">
+      <div id="resultCard">
+        <div id="resultTitle">大吉</div>
+        <p id="resultMsg">今日はもう勝っている。</p>
+
+        <!-- 共有UI（大吉） -->
+        <div class="shareRow">
+          <button id="daiShareImg" class="shareBtn" type="button">
+            画像で共有
+          </button>
+          <button id="daiSaveImg" class="shareBtn" type="button">
+            画像を保存
+          </button>
+          <a id="daiPostX" class="shareBtn" target="_blank" rel="noopener"
+            >Xへポスト</a
+          >
+          <button id="daiCopyUrl" class="shareBtn" type="button">
+            URLをコピー
+          </button>
+
+          <div class="shareHint">
+            ※PCは共有先が出ない場合があります。その時は「画像を保存」→投稿が確実。
+          </div>
+
+          <div id="daiShareMsg" class="shareMsg" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="osaisenOverlay" aria-live="polite" aria-atomic="true">
+      <div id="osaisenCard">
+        <div id="osaisenTitle">
+          あなたは<span class="kyou-word">凶運</span>の持ち主です。
+        </div>
+        <p id="osaisenMsg">
+          この端末は 1/5,000 の確立の「凶」を引いた。<br class="gap" />
+          その凶運は、強運の入口。封印を解くなら、賽銭をひとつ。
+        </p>
+
+        <div class="osaisen-actions">
+          <button id="osaisenGo" class="btn primary" type="button">
+            賽銭する
+          </button>
+        </div>
+
+        <div class="note">
+          ※賽銭しても、今日の判定は凶のままです。<br />
+          明日になれば、またお神籤がひけます
+        </div>
+
+        <!-- 共有UI -->
+        <div class="shareRow">
+          <button id="kyouShareImg" class="shareBtn" type="button">
+            画像で共有
+          </button>
+          <button id="kyouSaveImg" class="shareBtn" type="button">
+            画像を保存
+          </button>
+          <a id="kyouPostX" class="shareBtn" target="_blank" rel="noopener"
+            >Xへポスト</a
+          >
+          <button id="kyouCopyUrl" class="shareBtn" type="button">
+            URLをコピー
+          </button>
+          <div class="shareHint">
+            ※PCは共有先が出ない場合があります。その時は「画像を保存」→投稿が確実。
+          </div>
+          <div id="shareMsg" class="shareMsg" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- html2canvas（先に読み込む） -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+    <script src="./texts.js"></script>
+
+    <script>
+      // =========================
+      // Stripe Payment Link（テストモード）
+      // =========================
+      const STRIPE_PAYMENT_LINK =
+        "https://buy.stripe.com/test_4gM14o7FL4tZ12d3lKbEA00";
+
+      // 端末に固定の解放キーを作って保存（永久解放の“本人確認”代わり）
+      function getUnlockKey() {
+        let key = localStorage.getItem("unlock_key");
+        if (key) return key;
+
+        key =
+          globalThis.crypto && crypto.randomUUID
+            ? crypto.randomUUID()
+            : "u_" +
+              Math.random().toString(16).slice(2) +
+              Date.now().toString(16);
+
+        localStorage.setItem("unlock_key", key);
+        return key;
+      }
+
+      // 課金ページを開く（支払いを「この端末キー」に紐付ける）
+      function goToOsaisen() {
+        const key = getUnlockKey();
+        const url = `${STRIPE_PAYMENT_LINK}?client_reference_id=${encodeURIComponent(key)}`;
+        location.href = url;
+      }
+
+      // =========================
+      // 凶の確率（本番は 100000 / 1 に戻す）
+      // =========================
+      const PROB_KYOU_DENOM = 2;
+      const PROB_KYOU_NUM = 1;
+
+      // localStorage keys
+      const KEY_DEVICE_ID = "daikichi_device_id";
+      const KEY_OSAISEN_DONE_DATE = "daikichi_osaisen_done_date"; // 賽銭済み日（YYYY-MM-DD）
+      const KEY_DRAWN_DATE = "daikichi_drawn_date"; // 今日「引いた」日（YYYY-MM-DD）
+
+      const body = document.body;
+      const btn = document.getElementById("drawBtn");
+      const overlay = document.getElementById("resultOverlay");
+      const titleEl = document.getElementById("resultTitle");
+      const msgEl = document.getElementById("resultMsg");
+      const turb = document.getElementById("turbulence");
+
+      const osaisenOverlay = document.getElementById("osaisenOverlay");
+      const osaisenGo = document.getElementById("osaisenGo");
+
+      function sleep(ms) {
+        return new Promise((r) => setTimeout(r, ms));
+      }
+
+      function getDeviceId() {
+        let v = localStorage.getItem(KEY_DEVICE_ID);
+        if (!v) {
+          if (crypto && crypto.getRandomValues) {
+            const u8 = crypto.getRandomValues(new Uint8Array(16));
+            v = Array.from(u8)
+              .map((b) => b.toString(16).padStart(2, "0"))
+              .join("");
+          } else {
+            v = String(Math.random()).slice(2) + String(Date.now());
+          }
+          localStorage.setItem(KEY_DEVICE_ID, v);
+        }
+        return v;
+      }
+
+      function todayKeyJST() {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      }
+
+      function hash32(str) {
+        let h = 2166136261;
+        for (let i = 0; i < str.length; i++) {
+          h ^= str.charCodeAt(i);
+          h = Math.imul(h, 16777619);
+        }
+        return h >>> 0;
+      }
+
+      function randInt(maxExclusive) {
+        if (crypto && crypto.getRandomValues) {
+          const u = crypto.getRandomValues(new Uint32Array(1))[0];
+          return u % maxExclusive;
+        }
+        return Math.floor(Math.random() * maxExclusive);
+      }
+
+      function pickOmikujiTodayFixed() {
+        const texts = window.OMICHIJI_TEXTS || { daikichi: [], kyou: [] };
+
+        const deviceId = getDeviceId();
+        const today = todayKeyJST();
+        const baseKey = `${deviceId}:${today}`;
+
+        const r = hash32(baseKey) % PROB_KYOU_DENOM;
+        const isKyou = r < PROB_KYOU_NUM;
+
+        if (isKyou) {
+          const kyouMsg =
+            texts.kyou && texts.kyou.length ? texts.kyou[0] : "凶";
+          return { title: "凶", msg: kyouMsg, isKyou: true };
+        }
+
+        const arr =
+          texts.daikichi && texts.daikichi.length
+            ? texts.daikichi
+            : [
+                "今日ここに来たこと自体が、もう当たり。\n小さく動けば、運は勝手に追いつく。",
+              ];
+
+        const idx = hash32(baseKey + ":msg") % arr.length;
+        return { title: "大吉", msg: arr[idx], isKyou: false };
+      }
+
+      // ★ポイント：ロックは「今日引いた後」だけ効く
+      function isLockedToday() {
+        const today = todayKeyJST();
+        const done = localStorage.getItem(KEY_OSAISEN_DONE_DATE);
+        const drawn = localStorage.getItem(KEY_DRAWN_DATE);
+
+        if (drawn !== today) return false; // 引いてないなら封印しない
+
+        const result = pickOmikujiTodayFixed();
+        return result.isKyou && done !== today;
+      }
+
+      function showOsaisen() {
+        osaisenOverlay.classList.add("show");
+      }
+      function hideOsaisen() {
+        osaisenOverlay.classList.remove("show");
+      }
+
+      function handlePaidParam() {
+        const u = new URL(location.href);
+        const paid = (u.searchParams.get("paid") || "").trim();
+
+        if (paid === "1") {
+          const today = todayKeyJST();
+          localStorage.setItem(KEY_OSAISEN_DONE_DATE, today);
+
+          u.searchParams.delete("paid");
+          history.replaceState(null, "", u.toString());
+        }
+      }
+
+      function handleResetParam() {
+        const u = new URL(location.href);
+        const reset = (u.searchParams.get("reset") || "").trim();
+
+        if (reset === "1") {
+          localStorage.removeItem(KEY_DEVICE_ID);
+          localStorage.removeItem(KEY_OSAISEN_DONE_DATE);
+          localStorage.removeItem(KEY_DRAWN_DATE);
+
+          u.searchParams.delete("reset");
+          history.replaceState(null, "", u.toString());
+          location.reload();
+        }
+      }
+
+      function refreshButtonLabel() {
+        if (isLockedToday()) {
+          btn.textContent = "賽銭しないと引けない";
+        } else {
+          btn.textContent = "おみくじを引く";
+        }
+      }
+
+      async function distortAndReveal() {
+        if (isLockedToday()) {
+          showOsaisen();
+          return;
+        }
+
+        btn.disabled = true;
+        overlay.classList.remove("show");
+        hideOsaisen();
+
+        turb.setAttribute("seed", String(randInt(9999) + 1));
+        body.classList.add("distort");
+
+        const start = performance.now();
+        const dur = 1600;
+
+        function tick(now) {
+          const t = Math.min(1, (now - start) / dur);
+          const amp = Math.sin(t * Math.PI);
+          const bf = 0.01 + amp * 0.02;
+          turb.setAttribute("baseFrequency", bf.toFixed(4));
+          if (t < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+
+        await sleep(dur);
+
+        const result = pickOmikujiTodayFixed();
+
+        localStorage.setItem(KEY_DRAWN_DATE, todayKeyJST());
+
+        body.classList.remove("distort");
+
+        if (result.isKyou) {
+          showOsaisen();
+        } else {
+          titleEl.textContent = result.title;
+          msgEl.textContent = result.msg;
+          overlay.classList.add("show");
+        }
+
+        await sleep(300);
+        btn.disabled = false;
+
+        refreshButtonLabel();
+      }
+
+      function goStripe() {
+        if (
+          !STRIPE_PAYMENT_LINK ||
+          STRIPE_PAYMENT_LINK.includes("PASTE_YOUR")
+        ) {
+          alert(
+            "STRIPE_PAYMENT_LINK を Payment Link のURLに差し替えてね（テストモード）",
+          );
+          return;
+        }
+        location.href = STRIPE_PAYMENT_LINK;
+      }
+
+      btn.addEventListener("click", distortAndReveal);
+
+      overlay.addEventListener("click", () => {
+        overlay.classList.remove("show");
+      });
+
+      osaisenGo.addEventListener("click", goToOsaisen);
+
+      // 起動時
+      handlePaidParam();
+      handleResetParam();
+      refreshButtonLabel();
+
+      // =========================
+      // 凶：共有（画像化 → 共有/保存） + X投稿 + URLコピー（安定版）
+      // =========================
+      const kyouShareImg = document.getElementById("kyouShareImg");
+      const kyouSaveImg = document.getElementById("kyouSaveImg");
+      const kyouPostX = document.getElementById("kyouPostX");
+      const kyouCopyUrl = document.getElementById("kyouCopyUrl");
+      const shareMsg = document.getElementById("shareMsg");
+
+      function toastShare(t) {
+        shareMsg.textContent = t;
+        clearTimeout(window.__shareToastTimer);
+        window.__shareToastTimer = setTimeout(
+          () => (shareMsg.textContent = ""),
+          2400,
+        );
+      }
+
+      function buildKyouShareText() {
+        const title =
+          document.getElementById("osaisenTitle")?.innerText?.trim() || "凶";
+        const msg =
+          document.getElementById("osaisenMsg")?.innerText?.trim() || "";
+        return `${title}\n\n${msg}\n\n#今日の大吉\n${location.href}`;
+      }
+
+      function refreshKyouShareLinks() {
+        const text = buildKyouShareText();
+        kyouPostX.href =
+          "https://twitter.com/intent/tweet?text=" + encodeURIComponent(text);
+      }
+
+      async function renderKyouCardPack() {
+        if (typeof html2canvas !== "function") {
+          throw new Error("html2canvas未読込（CDN/読み込み順/ネット）");
+        }
+
+        const el = document.getElementById("osaisenCard");
+        if (document.fonts?.ready) await document.fonts.ready;
+
+        const canvas = await html2canvas(el, {
+          scale: 2,
+          backgroundColor: "#07080c",
+          useCORS: true,
+          onclone: (doc) => {
+            const c = doc.getElementById("osaisenCard");
+            if (c) {
+              c.style.background = "rgba(0,0,0,0.65)";
+              c.style.backdropFilter = "none";
+              c.style.webkitBackdropFilter = "none";
+            }
+          },
+        });
+
+        const blob = await new Promise((resolve) =>
+          canvas.toBlob(resolve, "image/png", 1),
+        );
+
+        return { blob, canvas };
+      }
+
+      // URLコピー
+      kyouCopyUrl.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(location.href);
+          toastShare("URLをコピーしました");
+        } catch (e) {
+          console.error(e);
+          toastShare("コピーできませんでした");
+        }
+      });
+
+      // 画像保存（toBlobがnullでも toDataURL で確実に保存）
+      kyouSaveImg.addEventListener("click", async () => {
+        try {
+          const { blob, canvas } = await renderKyouCardPack();
+
+          if (!blob) {
+            const dataUrl = canvas.toDataURL("image/png");
+            const a = document.createElement("a");
+            a.href = dataUrl;
+            a.download = "omikuji_kyou.png";
+            a.click();
+            toastShare(
+              "画像を保存しました。X/インスタで画像を選んで投稿してね",
+            );
+            return;
+          }
+
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "omikuji_kyou.png";
+          a.click();
+          URL.revokeObjectURL(url);
+
+          toastShare("画像を保存しました。X/インスタで画像を選んで投稿してね");
+        } catch (e) {
+          console.error(e);
+          toastShare("保存に失敗：" + (e?.message || e));
+        }
+      });
+
+      // 画像で共有（PCは未対応が多い。未対応なら保存へ誘導）
+      kyouShareImg.addEventListener("click", async () => {
+        try {
+          const { blob } = await renderKyouCardPack();
+
+          if (!blob) {
+            toastShare("この端末は画像共有に未対応。『画像を保存』が確実！");
+            return;
+          }
+
+          const file = new File([blob], "omikuji_kyou.png", {
+            type: "image/png",
+          });
+
+          if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+            await navigator.share({
+              title: "今日の大吉",
+              text: "#今日の大吉",
+              files: [file],
+            });
+            toastShare("共有メニューからX/Instagramを選んでね");
+          } else {
+            toastShare("この端末は画像共有に未対応。『画像を保存』が確実！");
+          }
+        } catch (e) {
+          console.error(e);
+          toastShare("共有に失敗：" + (e?.message || e));
+        }
+      });
+
+      // =========================
+      // 大吉：共有（画像化 → 共有/保存） + X投稿 + URLコピー（凶と同じ方式）
+      // =========================
+      const daiShareImg = document.getElementById("daiShareImg");
+      const daiSaveImg = document.getElementById("daiSaveImg");
+      const daiPostX = document.getElementById("daiPostX");
+      const daiCopyUrl = document.getElementById("daiCopyUrl");
+      const daiShareMsg = document.getElementById("daiShareMsg");
+
+      function toastDai(t) {
+        daiShareMsg.textContent = t;
+        clearTimeout(window.__daiToastTimer);
+        window.__daiToastTimer = setTimeout(
+          () => (daiShareMsg.textContent = ""),
+          2400,
+        );
+      }
+
+      function buildDaiShareText() {
+        const title =
+          document.getElementById("resultTitle")?.innerText?.trim() || "大吉";
+        const msg =
+          document.getElementById("resultMsg")?.innerText?.trim() || "";
+        return `${title}\n\n${msg}\n\n#今日の大吉\n${location.href}`;
+      }
+
+      function refreshDaiShareLinks() {
+        const text = buildDaiShareText();
+        daiPostX.href =
+          "https://twitter.com/intent/tweet?text=" + encodeURIComponent(text);
+      }
+
+      async function renderDaiCardPack() {
+        if (typeof html2canvas !== "function") {
+          throw new Error("html2canvas未読込（CDN/読み込み順/ネット）");
+        }
+
+        const el = document.getElementById("resultCard");
+        if (document.fonts?.ready) await document.fonts.ready;
+
+        const canvas = await html2canvas(el, {
+          scale: 2,
+          backgroundColor: "#07080c",
+          useCORS: true,
+          onclone: (doc) => {
+            const c = doc.getElementById("resultCard");
+            if (c) {
+              c.style.background = "rgba(0,0,0,0.55)";
+              c.style.backdropFilter = "none";
+              c.style.webkitBackdropFilter = "none";
+            }
+          },
+        });
+
+        const blob = await new Promise((resolve) =>
+          canvas.toBlob(resolve, "image/png", 1),
+        );
+
+        return { blob, canvas };
+      }
+
+      // URLコピー（大吉）
+      daiCopyUrl.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(location.href);
+          toastDai("URLをコピーしました");
+        } catch (e) {
+          console.error(e);
+          toastDai("コピーできませんでした");
+        }
+      });
+
+      // 画像保存（大吉）
+      daiSaveImg.addEventListener("click", async () => {
+        try {
+          const { blob, canvas } = await renderDaiCardPack();
+
+          if (!blob) {
+            const dataUrl = canvas.toDataURL("image/png");
+            const a = document.createElement("a");
+            a.href = dataUrl;
+            a.download = "omikuji_daikichi.png";
+            a.click();
+            toastDai("画像を保存しました。X/インスタで画像を選んで投稿してね");
+            return;
+          }
+
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "omikuji_daikichi.png";
+          a.click();
+          URL.revokeObjectURL(url);
+
+          toastDai("画像を保存しました。X/インスタで画像を選んで投稿してね");
+        } catch (e) {
+          console.error(e);
+          toastDai("保存に失敗：" + (e?.message || e));
+        }
+      });
+
+      // 画像で共有（大吉）
+      daiShareImg.addEventListener("click", async () => {
+        try {
+          const { blob } = await renderDaiCardPack();
+
+          if (!blob) {
+            toastDai("この端末は画像共有に未対応。『画像を保存』が確実！");
+            return;
+          }
+
+          const file = new File([blob], "omikuji_daikichi.png", {
+            type: "image/png",
+          });
+
+          if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+            await navigator.share({
+              title: "今日の大吉",
+              text: "#今日の大吉",
+              files: [file],
+            });
+            toastDai("共有メニューからX/Instagramを選んでね");
+          } else {
+            toastDai("この端末は画像共有に未対応。『画像を保存』が確実！");
+          }
+        } catch (e) {
+          console.error(e);
+          toastDai("共有に失敗：" + (e?.message || e));
+        }
+      });
+
+      // 起動時リンク更新（大吉）
+      refreshDaiShareLinks();
+
+      // 起動時にリンク更新
+      refreshKyouShareLinks();
+    </script>
   </body>
 </html>
