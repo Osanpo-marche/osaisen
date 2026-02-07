@@ -517,7 +517,7 @@
       function goToOsaisen() {
         const key = getUnlockKey();
         const url = `${STRIPE_PAYMENT_LINK}?client_reference_id=${encodeURIComponent(key)}`;
-        location.href = url;
+        window.open(url, "_blank", "noopener");
       }
 
       // =========================
