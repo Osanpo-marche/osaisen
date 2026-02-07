@@ -398,6 +398,21 @@
         line-height: 1.4;
         text-align: center;
       }
+
+      /* ===== スマホだけ：大吉本文をデカく＆共有欄を下へ ===== */
+      @media (max-width: 768px) {
+        /* 大吉の本文（2行のところ）をデカく */
+        #resultMsg {
+          font-size: 22px !important;
+          line-height: 2.2 !important;
+          margin-bottom: 46px !important;
+        }
+
+        /* 共有UIを下に落とす（ボタン群の開始位置） */
+        #resultCard .shareRow {
+          margin-top: 28px !important;
+        }
+      }
     </style>
   </head>
 
