@@ -701,21 +701,24 @@
           const today = todayKeyJST();
           localStorage.setItem(KEY_OSAISEN_DONE_DATE, today);
 
-          // GASに記録（unlockKey）
           const unlockKey = getUnlockKey();
-          recordPaidToGas_(unlockKey, today);
 
-          // 元タブへ通知（storageイベントで拾う）
+          // 先に通知（元タブ即反映）
           localStorage.setItem(KEY_PAID_SIGNAL, String(Date.now()));
+
+          // GASへ記録（閉じる前に確実に投げる）
+          recordPaidToGas_(unlockKey, today);
 
           // URLを綺麗に
           u.searchParams.delete("paid");
           history.replaceState(null, "", u.toString());
 
-          // 開いたタブなら閉じられることが多い
-          try {
-            window.close();
-          } catch (e) {}
+          // ✅ ここが重要：すぐ閉じない（0.8秒待つ）
+          setTimeout(() => {
+            try {
+              window.close();
+            } catch (e) {}
+          }, 800);
         }
       }
 
