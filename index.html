@@ -69,15 +69,25 @@
             calc(55% + var(--shift-y));
         }
 
-        /* ✅ テキスト塊を上へ */
+        /* 汝〜巡りなり：上へ */
         .box {
           transform: translateY(-70px);
         }
 
-        /* ✅ 追加：汝〜巡りなり を右へ（スマホだけ） */
+        /* 汝〜巡りなり：右へ */
         .lead,
         .message {
           transform: translateX(16px);
+        }
+
+        /* 大吉の文章：大きく */
+        #resultMsg {
+          font-size: 20px;
+        }
+
+        /* 共有欄：もっと下へ */
+        .shareRow {
+          margin-top: 24px; /* 32px/40pxでさらに下 */
         }
       }
 
