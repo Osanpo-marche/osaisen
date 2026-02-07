@@ -589,6 +589,27 @@
       function pickOmikujiTodayFixed() {
         const texts = window.OMICHIJI_TEXTS || { daikichi: [], kyou: [] };
 
+        // ✅ デバッグ（鍵があるときだけ force を有効化）
+        const params = new URLSearchParams(location.search);
+        const DEBUG_KEY = "tane2026"; // ←好きな文字に変えてOK（自分だけ知ってるやつ）
+        const debugOk = params.get("debug") === DEBUG_KEY;
+
+        if (debugOk && params.get("force") === "kyou") {
+          const kyouMsg =
+            texts.kyou && texts.kyou.length ? texts.kyou[0] : "凶";
+          return { title: "凶", msg: kyouMsg, isKyou: true };
+        }
+        if (debugOk && params.get("force") === "daikichi") {
+          const arr =
+            texts.daikichi && texts.daikichi.length
+              ? texts.daikichi
+              : [
+                  "今日ここに来たこと自体が、もう当たり。\n小さく動けば、運は勝手に追いつく。",
+                ];
+          const idx = 0; // 先頭固定でOK（デバッグ用）
+          return { title: "大吉", msg: arr[idx], isKyou: false };
+        }
+
         const deviceId = getDeviceId();
         const today = todayKeyJST();
         const baseKey = `${deviceId}:${today}`;
