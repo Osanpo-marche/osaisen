@@ -69,9 +69,15 @@
             calc(55% + var(--shift-y));
         }
 
-        /* ✅ これ追加：テキスト塊を上へ */
+        /* ✅ テキスト塊を上へ */
         .box {
           transform: translateY(-70px);
+        }
+
+        /* ✅ 追加：汝〜巡りなり を右へ（スマホだけ） */
+        .lead,
+        .message {
+          transform: translateX(16px);
         }
       }
 
