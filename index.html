@@ -497,6 +497,39 @@
       const STRIPE_PAYMENT_LINK =
         "https://buy.stripe.com/test_4gM14o7FL4tZ12d3lKbEA00";
 
+      // =========================
+      // GAS Paid Registry
+      // =========================
+      const GAS_ENDPOINT =
+        "https://script.google.com/macros/s/AKfycby_HJGh7-hLEhGdIiC1MgL-gbATPZaPrjgbM0sRo7sID0bz_Fg7XEpuzGWol1TwpBmBZw/exec";
+      const GAS_TOKEN = "tane2026_paid_token";
+
+      // =========================
+      // 凶の確率（本番は 5000 / 1 とかに）
+      // =========================
+      const PROB_KYOU_DENOM = 5000;
+      const PROB_KYOU_NUM = 1;
+
+      // localStorage keys
+      const KEY_DEVICE_ID = "daikichi_device_id";
+      const KEY_OSAISEN_DONE_DATE = "daikichi_osaisen_done_date"; // 賽銭済み日（YYYY-MM-DD）
+      const KEY_DRAWN_DATE = "daikichi_drawn_date"; // 今日「引いた」日（YYYY-MM-DD）
+      const KEY_PAID_SIGNAL = "daikichi_paid_signal"; // タブ間同期用
+
+      const body = document.body;
+      const btn = document.getElementById("drawBtn");
+      const overlay = document.getElementById("resultOverlay");
+      const titleEl = document.getElementById("resultTitle");
+      const msgEl = document.getElementById("resultMsg");
+      const turb = document.getElementById("turbulence");
+
+      const osaisenOverlay = document.getElementById("osaisenOverlay");
+      const osaisenGo = document.getElementById("osaisenGo");
+
+      function sleep(ms) {
+        return new Promise((r) => setTimeout(r, ms));
+      }
+
       // 端末に固定の解放キーを作って保存（永久解放の“本人確認”代わり）
       function getUnlockKey() {
         let key = localStorage.getItem("unlock_key");
@@ -513,36 +546,50 @@
         return key;
       }
 
+      function todayKeyJST() {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      }
+
+      function recordPaidToGas_(unlockKey, date) {
+        try {
+          const payload = {
+            action: "paid",
+            token: GAS_TOKEN,
+            unlockKey,
+            date,
+            ua: navigator.userAgent || "",
+          };
+
+          // sendBeacon（CORS詰みにくい）
+          if (navigator.sendBeacon) {
+            const blob = new Blob([JSON.stringify(payload)], {
+              type: "application/json",
+            });
+            navigator.sendBeacon(GAS_ENDPOINT, blob);
+            return;
+          }
+
+          // fallback（結果は読まない）
+          fetch(GAS_ENDPOINT, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }).catch(() => {});
+        } catch (e) {}
+      }
+
       // 課金ページを開く（支払いを「この端末キー」に紐付ける）
       function goToOsaisen() {
         const key = getUnlockKey();
-        const url = `${STRIPE_PAYMENT_LINK}?client_reference_id=${encodeURIComponent(key)}`;
+        const url = `${STRIPE_PAYMENT_LINK}?client_reference_id=${encodeURIComponent(
+          key,
+        )}`;
         window.open(url, "_blank", "noopener");
-      }
-
-      // =========================
-      // 凶の確率（本番は 100000 / 1 に戻す）
-      // =========================
-      const PROB_KYOU_DENOM = 2;
-      const PROB_KYOU_NUM = 1;
-
-      // localStorage keys
-      const KEY_DEVICE_ID = "daikichi_device_id";
-      const KEY_OSAISEN_DONE_DATE = "daikichi_osaisen_done_date"; // 賽銭済み日（YYYY-MM-DD）
-      const KEY_DRAWN_DATE = "daikichi_drawn_date"; // 今日「引いた」日（YYYY-MM-DD）
-
-      const body = document.body;
-      const btn = document.getElementById("drawBtn");
-      const overlay = document.getElementById("resultOverlay");
-      const titleEl = document.getElementById("resultTitle");
-      const msgEl = document.getElementById("resultMsg");
-      const turb = document.getElementById("turbulence");
-
-      const osaisenOverlay = document.getElementById("osaisenOverlay");
-      const osaisenGo = document.getElementById("osaisenGo");
-
-      function sleep(ms) {
-        return new Promise((r) => setTimeout(r, ms));
       }
 
       function getDeviceId() {
@@ -559,14 +606,6 @@
           localStorage.setItem(KEY_DEVICE_ID, v);
         }
         return v;
-      }
-
-      function todayKeyJST() {
-        const d = new Date();
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, "0");
-        const day = String(d.getDate()).padStart(2, "0");
-        return `${y}-${m}-${day}`;
       }
 
       function hash32(str) {
@@ -591,7 +630,7 @@
 
         // ✅ デバッグ（鍵があるときだけ force を有効化）
         const params = new URLSearchParams(location.search);
-        const DEBUG_KEY = "tane2026"; // ←好きな文字に変えてOK（自分だけ知ってるやつ）
+        const DEBUG_KEY = "tane2026";
         const debugOk = params.get("debug") === DEBUG_KEY;
 
         if (debugOk && params.get("force") === "kyou") {
@@ -606,7 +645,7 @@
               : [
                   "今日ここに来たこと自体が、もう当たり。\n小さく動けば、運は勝手に追いつく。",
                 ];
-          const idx = 0; // 先頭固定でOK（デバッグ用）
+          const idx = 0;
           return { title: "大吉", msg: arr[idx], isKyou: false };
         }
 
@@ -653,6 +692,7 @@
         osaisenOverlay.classList.remove("show");
       }
 
+      // ✅ paid=1 で戻ってきたタブが「支払い完了」を記録＆元タブへ通知
       function handlePaidParam() {
         const u = new URL(location.href);
         const paid = (u.searchParams.get("paid") || "").trim();
@@ -661,10 +701,33 @@
           const today = todayKeyJST();
           localStorage.setItem(KEY_OSAISEN_DONE_DATE, today);
 
+          // GASに記録（unlockKey）
+          const unlockKey = getUnlockKey();
+          recordPaidToGas_(unlockKey, today);
+
+          // 元タブへ通知（storageイベントで拾う）
+          localStorage.setItem(KEY_PAID_SIGNAL, String(Date.now()));
+
+          // URLを綺麗に
           u.searchParams.delete("paid");
           history.replaceState(null, "", u.toString());
+
+          // 開いたタブなら閉じられることが多い
+          try {
+            window.close();
+          } catch (e) {}
         }
       }
+
+      // ✅ 元タブ側：支払い完了通知を受けたら即UI反映
+      window.addEventListener("storage", (e) => {
+        if (e.key === KEY_PAID_SIGNAL) {
+          const today = todayKeyJST();
+          localStorage.setItem(KEY_OSAISEN_DONE_DATE, today);
+          hideOsaisen();
+          refreshButtonLabel();
+        }
+      });
 
       function handleResetParam() {
         const u = new URL(location.href);
@@ -674,6 +737,7 @@
           localStorage.removeItem(KEY_DEVICE_ID);
           localStorage.removeItem(KEY_OSAISEN_DONE_DATE);
           localStorage.removeItem(KEY_DRAWN_DATE);
+          localStorage.removeItem("unlock_key");
 
           u.searchParams.delete("reset");
           history.replaceState(null, "", u.toString());
@@ -734,19 +798,6 @@
         btn.disabled = false;
 
         refreshButtonLabel();
-      }
-
-      function goStripe() {
-        if (
-          !STRIPE_PAYMENT_LINK ||
-          STRIPE_PAYMENT_LINK.includes("PASTE_YOUR")
-        ) {
-          alert(
-            "STRIPE_PAYMENT_LINK を Payment Link のURLに差し替えてね（テストモード）",
-          );
-          return;
-        }
-        location.href = STRIPE_PAYMENT_LINK;
       }
 
       btn.addEventListener("click", distortAndReveal);
@@ -1026,10 +1077,8 @@
         }
       });
 
-      // 起動時リンク更新（大吉）
+      // 起動時リンク更新
       refreshDaiShareLinks();
-
-      // 起動時にリンク更新
       refreshKyouShareLinks();
     </script>
   </body>
