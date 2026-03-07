@@ -486,7 +486,7 @@
           あなたは<span class="kyou-word">凶運</span>の持ち主です。
         </div>
         <p id="osaisenMsg">
-          この端末は 1/5,000 の確立の「凶」を引いた。<br class="gap" />
+          この端末は 1/365 の確立の「凶」を引いた。<br class="gap" />
           その凶運は、強運の入口。封印を解くなら、賽銭をひとつ。
         </p>
 
@@ -529,598 +529,604 @@
     <script src="./texts.js"></script>
 
     <script>
-      // =========================
-      // Stripe Payment Link（テストモード）
-      // =========================
-      const STRIPE_PAYMENT_LINK =
-        "https://buy.stripe.com/test_4gM14o7FL4tZ12d3lKbEA00";
-
-      // =========================
-      // GAS Paid Registry
-      // =========================
-      const GAS_ENDPOINT =
-        "https://script.google.com/macros/s/AKfycby_HJGh7-hLEhGdIiC1MgL-gbATPZaPrjgbM0sRo7sID0bz_Fg7XEpuzGWol1TwpBmBZw/exec";
-      const GAS_TOKEN = "tane2026_paid_token";
-
-      // =========================
-      // 凶の確率（本番は 5000 / 1 とかに）
-      // =========================
-      const PROB_KYOU_DENOM = 5000;
-      const PROB_KYOU_NUM = 1;
-
-      // localStorage keys
-      const KEY_DEVICE_ID = "daikichi_device_id";
-      const KEY_OSAISEN_DONE_DATE = "daikichi_osaisen_done_date"; // 賽銭済み日（YYYY-MM-DD）
-      const KEY_DRAWN_DATE = "daikichi_drawn_date"; // 今日「引いた」日（YYYY-MM-DD）
-      const KEY_PAID_SIGNAL = "daikichi_paid_signal"; // タブ間同期用
-
-      const body = document.body;
-      const btn = document.getElementById("drawBtn");
-      const overlay = document.getElementById("resultOverlay");
-      const titleEl = document.getElementById("resultTitle");
-      const msgEl = document.getElementById("resultMsg");
-      const turb = document.getElementById("turbulence");
-
-      const osaisenOverlay = document.getElementById("osaisenOverlay");
-      const osaisenGo = document.getElementById("osaisenGo");
-
-      function sleep(ms) {
-        return new Promise((r) => setTimeout(r, ms));
-      }
-
-      // 端末に固定の解放キーを作って保存（永久解放の“本人確認”代わり）
-      function getUnlockKey() {
-        let key = localStorage.getItem("unlock_key");
-        if (key) return key;
-
-        key =
-          globalThis.crypto && crypto.randomUUID
-            ? crypto.randomUUID()
-            : "u_" +
-              Math.random().toString(16).slice(2) +
-              Date.now().toString(16);
-
-        localStorage.setItem("unlock_key", key);
-        return key;
-      }
-
-      function todayKeyJST() {
-        const d = new Date();
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, "0");
-        const day = String(d.getDate()).padStart(2, "0");
-        return `${y}-${m}-${day}`;
-      }
-
-      function recordPaidToGas_(unlockKey, date) {
-        try {
-          const payload = {
-            action: "paid",
-            token: GAS_TOKEN,
-            unlockKey,
-            date,
-            ua: navigator.userAgent || "",
-          };
-
-          // sendBeacon（CORS詰みにくい）
-          if (navigator.sendBeacon) {
-            const blob = new Blob([JSON.stringify(payload)], {
-              type: "application/json",
-            });
-            navigator.sendBeacon(GAS_ENDPOINT, blob);
-            return;
-          }
-
-          // fallback（結果は読まない）
-          fetch(GAS_ENDPOINT, {
-            method: "POST",
-            mode: "no-cors",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          }).catch(() => {});
-        } catch (e) {}
-      }
-
-      // 課金ページを開く（支払いを「この端末キー」に紐付ける）
-      function goToOsaisen() {
-        const key = getUnlockKey();
-        const url = `${STRIPE_PAYMENT_LINK}?client_reference_id=${encodeURIComponent(
-          key,
-        )}`;
-        window.open(url, "_blank", "noopener");
-      }
-
-      function getDeviceId() {
-        let v = localStorage.getItem(KEY_DEVICE_ID);
-        if (!v) {
-          if (crypto && crypto.getRandomValues) {
-            const u8 = crypto.getRandomValues(new Uint8Array(16));
-            v = Array.from(u8)
-              .map((b) => b.toString(16).padStart(2, "0"))
-              .join("");
-          } else {
-            v = String(Math.random()).slice(2) + String(Date.now());
-          }
-          localStorage.setItem(KEY_DEVICE_ID, v);
-        }
-        return v;
-      }
-
-      function hash32(str) {
-        let h = 2166136261;
-        for (let i = 0; i < str.length; i++) {
-          h ^= str.charCodeAt(i);
-          h = Math.imul(h, 16777619);
-        }
-        return h >>> 0;
-      }
-
-      function randInt(maxExclusive) {
-        if (crypto && crypto.getRandomValues) {
-          const u = crypto.getRandomValues(new Uint32Array(1))[0];
-          return u % maxExclusive;
-        }
-        return Math.floor(Math.random() * maxExclusive);
-      }
-
-      function pickOmikujiTodayFixed() {
-        const texts = window.OMICHIJI_TEXTS || { daikichi: [], kyou: [] };
-
-        // ✅ デバッグ（鍵があるときだけ force を有効化）
-        const params = new URLSearchParams(location.search);
-        const DEBUG_KEY = "tane2026";
-        const debugOk = params.get("debug") === DEBUG_KEY;
-
-        if (debugOk && params.get("force") === "kyou") {
-          const kyouMsg =
-            texts.kyou && texts.kyou.length ? texts.kyou[0] : "凶";
-          return { title: "凶", msg: kyouMsg, isKyou: true };
-        }
-        if (debugOk && params.get("force") === "daikichi") {
-          const arr =
-            texts.daikichi && texts.daikichi.length
-              ? texts.daikichi
-              : [
-                  "今日ここに来たこと自体が、もう当たり。\n小さく動けば、運は勝手に追いつく。",
-                ];
-          const idx = 0;
-          return { title: "大吉", msg: arr[idx], isKyou: false };
-        }
-
-        const deviceId = getDeviceId();
-        const today = todayKeyJST();
-        const baseKey = `${deviceId}:${today}`;
-
-        const r = hash32(baseKey) % PROB_KYOU_DENOM;
-        const isKyou = r < PROB_KYOU_NUM;
-
-        if (isKyou) {
-          const kyouMsg =
-            texts.kyou && texts.kyou.length ? texts.kyou[0] : "凶";
-          return { title: "凶", msg: kyouMsg, isKyou: true };
-        }
-
-        const arr =
-          texts.daikichi && texts.daikichi.length
-            ? texts.daikichi
-            : [
-                "今日ここに来たこと自体が、もう当たり。\n小さく動けば、運は勝手に追いつく。",
-              ];
-
-        const idx = hash32(baseKey + ":msg") % arr.length;
-        return { title: "大吉", msg: arr[idx], isKyou: false };
-      }
-
-      // ★ポイント：ロックは「今日引いた後」だけ効く
-      function isLockedToday() {
-        const today = todayKeyJST();
-        const done = localStorage.getItem(KEY_OSAISEN_DONE_DATE);
-        const drawn = localStorage.getItem(KEY_DRAWN_DATE);
-
-        if (drawn !== today) return false; // 引いてないなら封印しない
-
-        const result = pickOmikujiTodayFixed();
-        return result.isKyou && done !== today;
-      }
-
-      function showOsaisen() {
-        osaisenOverlay.classList.add("show");
-      }
-      function hideOsaisen() {
-        osaisenOverlay.classList.remove("show");
-      }
-
-      // ✅ paid=1 で戻ってきたタブが「支払い完了」を記録＆元タブへ通知
-      function handlePaidParam() {
-        const u = new URL(location.href);
-        const paid = (u.searchParams.get("paid") || "").trim();
-
-        if (paid === "1") {
-          const today = todayKeyJST();
-          localStorage.setItem(KEY_OSAISEN_DONE_DATE, today);
-
-          const unlockKey = getUnlockKey();
-
-          // 先に通知（元タブ即反映）
-          localStorage.setItem(KEY_PAID_SIGNAL, String(Date.now()));
-
-          // GASへ記録（閉じる前に確実に投げる）
-          recordPaidToGas_(unlockKey, today);
-
-          // URLを綺麗に
-          u.searchParams.delete("paid");
-          history.replaceState(null, "", u.toString());
-
-          // ✅ ここが重要：すぐ閉じない（0.8秒待つ）
-          setTimeout(() => {
-            try {
-              window.close();
-            } catch (e) {}
-          }, 800);
-        }
-      }
-
-      // ✅ 元タブ側：支払い完了通知を受けたら即UI反映
-      window.addEventListener("storage", (e) => {
-        if (e.key === KEY_PAID_SIGNAL) {
-          const today = todayKeyJST();
-          localStorage.setItem(KEY_OSAISEN_DONE_DATE, today);
-          hideOsaisen();
-          refreshButtonLabel();
-        }
-      });
-
-      function handleResetParam() {
-        const u = new URL(location.href);
-        const reset = (u.searchParams.get("reset") || "").trim();
-
-        if (reset === "1") {
-          localStorage.removeItem(KEY_DEVICE_ID);
-          localStorage.removeItem(KEY_OSAISEN_DONE_DATE);
-          localStorage.removeItem(KEY_DRAWN_DATE);
-          localStorage.removeItem("unlock_key");
-
-          u.searchParams.delete("reset");
-          history.replaceState(null, "", u.toString());
-          location.reload();
-        }
-      }
-
-      function refreshButtonLabel() {
-        if (isLockedToday()) {
-          btn.textContent = "賽銭しないと引けない";
-        } else {
-          btn.textContent = "おみくじを引く";
-        }
-      }
-
-      async function distortAndReveal() {
-        if (isLockedToday()) {
-          showOsaisen();
-          return;
-        }
-
-        btn.disabled = true;
-        overlay.classList.remove("show");
-        hideOsaisen();
-
-        turb.setAttribute("seed", String(randInt(9999) + 1));
-        body.classList.add("distort");
-
-        const start = performance.now();
-        const dur = 1600;
-
-        function tick(now) {
-          const t = Math.min(1, (now - start) / dur);
-          const amp = Math.sin(t * Math.PI);
-          const bf = 0.01 + amp * 0.02;
-          turb.setAttribute("baseFrequency", bf.toFixed(4));
-          if (t < 1) requestAnimationFrame(tick);
-        }
-        requestAnimationFrame(tick);
-
-        await sleep(dur);
-
-        const result = pickOmikujiTodayFixed();
-
-        localStorage.setItem(KEY_DRAWN_DATE, todayKeyJST());
-
-        body.classList.remove("distort");
-
-        if (result.isKyou) {
-          showOsaisen();
-        } else {
-          titleEl.textContent = result.title;
-          msgEl.textContent = result.msg;
-          overlay.classList.add("show");
-        }
-
-        await sleep(300);
-        btn.disabled = false;
-
-        refreshButtonLabel();
-      }
-
-      btn.addEventListener("click", distortAndReveal);
-
-      overlay.addEventListener("click", () => {
-        overlay.classList.remove("show");
-      });
-
-      osaisenGo.addEventListener("click", goToOsaisen);
-
-      // 起動時
-      handlePaidParam();
-      handleResetParam();
-      refreshButtonLabel();
-
-      // =========================
-      // 凶：共有（画像化 → 共有/保存） + X投稿 + URLコピー（安定版）
-      // =========================
-      const kyouShareImg = document.getElementById("kyouShareImg");
-      const kyouSaveImg = document.getElementById("kyouSaveImg");
-      const kyouPostX = document.getElementById("kyouPostX");
-      const kyouCopyUrl = document.getElementById("kyouCopyUrl");
-      const shareMsg = document.getElementById("shareMsg");
-
-      function toastShare(t) {
-        shareMsg.textContent = t;
-        clearTimeout(window.__shareToastTimer);
-        window.__shareToastTimer = setTimeout(
-          () => (shareMsg.textContent = ""),
-          2400,
-        );
-      }
-
-      function buildKyouShareText() {
-        const title =
-          document.getElementById("osaisenTitle")?.innerText?.trim() || "凶";
-        const msg =
-          document.getElementById("osaisenMsg")?.innerText?.trim() || "";
-        return `${title}\n\n${msg}\n\n#今日の大吉\n${location.href}`;
-      }
-
-      function refreshKyouShareLinks() {
-        const text = buildKyouShareText();
-        kyouPostX.href =
-          "https://twitter.com/intent/tweet?text=" + encodeURIComponent(text);
-      }
-
-      async function renderKyouCardPack() {
-        if (typeof html2canvas !== "function") {
-          throw new Error("html2canvas未読込（CDN/読み込み順/ネット）");
-        }
-
-        const el = document.getElementById("osaisenCard");
-        if (document.fonts?.ready) await document.fonts.ready;
-
-        const canvas = await html2canvas(el, {
-          scale: 2,
-          backgroundColor: "#07080c",
-          useCORS: true,
-          onclone: (doc) => {
-            const c = doc.getElementById("osaisenCard");
-            if (c) {
-              c.style.background = "rgba(0,0,0,0.65)";
-              c.style.backdropFilter = "none";
-              c.style.webkitBackdropFilter = "none";
+            // =========================
+            // Stripe Payment Link（テストモード）
+            // =========================
+            const STRIPE_PAYMENT_LINK =
+              "https://buy.stripe.com/test_4gM14o7FL4tZ12d3lKbEA00";
+
+            // =========================
+            // GAS Paid Registry
+            // =========================
+            const GAS_ENDPOINT =
+              "https://script.google.com/macros/s/AKfycby_HJGh7-hLEhGdIiC1MgL-gbATPZaPrjgbM0sRo7sID0bz_Fg7XEpuzGWol1TwpBmBZw/exec";
+            const GAS_TOKEN = "tane2026_paid_token";
+
+            // =========================
+            // 凶の確率（本番は 5000 / 1 とかに）
+            // =========================
+            const PROB_KYOU_DENOM = 365;
+            const PROB_KYOU_NUM = 1;
+
+            // localStorage keys
+            const KEY_DEVICE_ID = "daikichi_device_id";
+            const KEY_OSAISEN_DONE_DATE = "daikichi_osaisen_done_date"; // 賽銭済み日（YYYY-MM-DD）
+            const KEY_DRAWN_DATE = "daikichi_drawn_date"; // 今日「引いた」日（YYYY-MM-DD）
+            const KEY_PAID_SIGNAL = "daikichi_paid_signal"; // タブ間同期用
+
+            const body = document.body;
+            const btn = document.getElementById("drawBtn");
+            const overlay = document.getElementById("resultOverlay");
+            const titleEl = document.getElementById("resultTitle");
+            const msgEl = document.getElementById("resultMsg");
+            const turb = document.getElementById("turbulence");
+
+            const osaisenOverlay = document.getElementById("osaisenOverlay");
+            const osaisenGo = document.getElementById("osaisenGo");
+
+            function sleep(ms) {
+              return new Promise((r) => setTimeout(r, ms));
             }
-          },
-        });
 
-        const blob = await new Promise((resolve) =>
-          canvas.toBlob(resolve, "image/png", 1),
-        );
+            // 端末に固定の解放キーを作って保存（永久解放の“本人確認”代わり）
+            function getUnlockKey() {
+              let key = localStorage.getItem("unlock_key");
+              if (key) return key;
 
-        return { blob, canvas };
-      }
+              key =
+                globalThis.crypto && crypto.randomUUID
+                  ? crypto.randomUUID()
+                  : "u_" +
+                    Math.random().toString(16).slice(2) +
+                    Date.now().toString(16);
 
-      // URLコピー
-      kyouCopyUrl.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(location.href);
-          toastShare("URLをコピーしました");
-        } catch (e) {
-          console.error(e);
-          toastShare("コピーできませんでした");
-        }
-      });
-
-      // 画像保存（toBlobがnullでも toDataURL で確実に保存）
-      kyouSaveImg.addEventListener("click", async () => {
-        try {
-          const { blob, canvas } = await renderKyouCardPack();
-
-          if (!blob) {
-            const dataUrl = canvas.toDataURL("image/png");
-            const a = document.createElement("a");
-            a.href = dataUrl;
-            a.download = "omikuji_kyou.png";
-            a.click();
-            toastShare(
-              "画像を保存しました。X/インスタで画像を選んで投稿してね",
-            );
-            return;
-          }
-
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "omikuji_kyou.png";
-          a.click();
-          URL.revokeObjectURL(url);
-
-          toastShare("画像を保存しました。X/インスタで画像を選んで投稿してね");
-        } catch (e) {
-          console.error(e);
-          toastShare("保存に失敗：" + (e?.message || e));
-        }
-      });
-
-      // 画像で共有（PCは未対応が多い。未対応なら保存へ誘導）
-      kyouShareImg.addEventListener("click", async () => {
-        try {
-          const { blob } = await renderKyouCardPack();
-
-          if (!blob) {
-            toastShare("この端末は画像共有に未対応。『画像を保存』が確実！");
-            return;
-          }
-
-          const file = new File([blob], "omikuji_kyou.png", {
-            type: "image/png",
-          });
-
-          if (navigator.canShare?.({ files: [file] }) && navigator.share) {
-            await navigator.share({
-              title: "今日の大吉",
-              text: "#今日の大吉",
-              files: [file],
-            });
-            toastShare("共有メニューからX/Instagramを選んでね");
-          } else {
-            toastShare("この端末は画像共有に未対応。『画像を保存』が確実！");
-          }
-        } catch (e) {
-          console.error(e);
-          toastShare("共有に失敗：" + (e?.message || e));
-        }
-      });
-
-      // =========================
-      // 大吉：共有（画像化 → 共有/保存） + X投稿 + URLコピー（凶と同じ方式）
-      // =========================
-      const daiShareImg = document.getElementById("daiShareImg");
-      const daiSaveImg = document.getElementById("daiSaveImg");
-      const daiPostX = document.getElementById("daiPostX");
-      const daiCopyUrl = document.getElementById("daiCopyUrl");
-      const daiShareMsg = document.getElementById("daiShareMsg");
-
-      function toastDai(t) {
-        daiShareMsg.textContent = t;
-        clearTimeout(window.__daiToastTimer);
-        window.__daiToastTimer = setTimeout(
-          () => (daiShareMsg.textContent = ""),
-          2400,
-        );
-      }
-
-      function buildDaiShareText() {
-        const title =
-          document.getElementById("resultTitle")?.innerText?.trim() || "大吉";
-        const msg =
-          document.getElementById("resultMsg")?.innerText?.trim() || "";
-        return `${title}\n\n${msg}\n\n#今日の大吉\n${location.href}`;
-      }
-
-      function refreshDaiShareLinks() {
-        const text = buildDaiShareText();
-        daiPostX.href =
-          "https://twitter.com/intent/tweet?text=" + encodeURIComponent(text);
-      }
-
-      async function renderDaiCardPack() {
-        if (typeof html2canvas !== "function") {
-          throw new Error("html2canvas未読込（CDN/読み込み順/ネット）");
-        }
-
-        const el = document.getElementById("resultCard");
-        if (document.fonts?.ready) await document.fonts.ready;
-
-        const canvas = await html2canvas(el, {
-          scale: 2,
-          backgroundColor: "#07080c",
-          useCORS: true,
-          onclone: (doc) => {
-            const c = doc.getElementById("resultCard");
-            if (c) {
-              c.style.background = "rgba(0,0,0,0.55)";
-              c.style.backdropFilter = "none";
-              c.style.webkitBackdropFilter = "none";
+              localStorage.setItem("unlock_key", key);
+              return key;
             }
-          },
-        });
 
-        const blob = await new Promise((resolve) =>
-          canvas.toBlob(resolve, "image/png", 1),
-        );
+            function todayKeyJST() {
+              const d = new Date();
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, "0");
+              const day = String(d.getDate()).padStart(2, "0");
+              return `${y}-${m}-${day}`;
+            }
 
-        return { blob, canvas };
+            function recordPaidToGas_(unlockKey, date) {
+        try {
+          const img = new Image();
+          img.src =
+            GAS_ENDPOINT +
+            "?action=paid" +
+            "&token=" + encodeURIComponent(GAS_TOKEN) +
+            "&unlockKey=" + encodeURIComponent(unlockKey) +
+            "&date=" + encodeURIComponent(date) +
+            "&ua=" + encodeURIComponent(navigator.userAgent || "") +
+            "&t=" + Date.now();
+        } catch (e) {
+          console.error("GAS record failed", e);
+        }
       }
 
-      // URLコピー（大吉）
-      daiCopyUrl.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(location.href);
-          toastDai("URLをコピーしました");
-        } catch (e) {
-          console.error(e);
-          toastDai("コピーできませんでした");
-        }
-      });
+                // sendBeacon（CORS詰みにくい）
+                if (navigator.sendBeacon) {
+                  const blob = new Blob([JSON.stringify(payload)], {
+                    type: "application/json",
+                  });
+                  navigator.sendBeacon(GAS_ENDPOINT, blob);
+                  return;
+                }
 
-      // 画像保存（大吉）
-      daiSaveImg.addEventListener("click", async () => {
-        try {
-          const { blob, canvas } = await renderDaiCardPack();
+                // fallback（結果は読まない）
+                fetch(GAS_ENDPOINT, {
+                  method: "POST",
+                  mode: "no-cors",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(payload),
+                }).catch(() => {});
+              } catch (e) {}
+            }
 
-          if (!blob) {
-            const dataUrl = canvas.toDataURL("image/png");
-            const a = document.createElement("a");
-            a.href = dataUrl;
-            a.download = "omikuji_daikichi.png";
-            a.click();
-            toastDai("画像を保存しました。X/インスタで画像を選んで投稿してね");
-            return;
-          }
+            // 課金ページを開く（支払いを「この端末キー」に紐付ける）
+            function goToOsaisen() {
+              const key = getUnlockKey();
+              const url = `${STRIPE_PAYMENT_LINK}?client_reference_id=${encodeURIComponent(
+                key,
+              )}`;
+              window.open(url, "_blank", "noopener");
+            }
 
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "omikuji_daikichi.png";
-          a.click();
-          URL.revokeObjectURL(url);
+            function getDeviceId() {
+              let v = localStorage.getItem(KEY_DEVICE_ID);
+              if (!v) {
+                if (crypto && crypto.getRandomValues) {
+                  const u8 = crypto.getRandomValues(new Uint8Array(16));
+                  v = Array.from(u8)
+                    .map((b) => b.toString(16).padStart(2, "0"))
+                    .join("");
+                } else {
+                  v = String(Math.random()).slice(2) + String(Date.now());
+                }
+                localStorage.setItem(KEY_DEVICE_ID, v);
+              }
+              return v;
+            }
 
-          toastDai("画像を保存しました。X/インスタで画像を選んで投稿してね");
-        } catch (e) {
-          console.error(e);
-          toastDai("保存に失敗：" + (e?.message || e));
-        }
-      });
+            function hash32(str) {
+              let h = 2166136261;
+              for (let i = 0; i < str.length; i++) {
+                h ^= str.charCodeAt(i);
+                h = Math.imul(h, 16777619);
+              }
+              return h >>> 0;
+            }
 
-      // 画像で共有（大吉）
-      daiShareImg.addEventListener("click", async () => {
-        try {
-          const { blob } = await renderDaiCardPack();
+            function randInt(maxExclusive) {
+              if (crypto && crypto.getRandomValues) {
+                const u = crypto.getRandomValues(new Uint32Array(1))[0];
+                return u % maxExclusive;
+              }
+              return Math.floor(Math.random() * maxExclusive);
+            }
 
-          if (!blob) {
-            toastDai("この端末は画像共有に未対応。『画像を保存』が確実！");
-            return;
-          }
+            function pickOmikujiTodayFixed() {
+              const texts = window.OMICHIJI_TEXTS || { daikichi: [], kyou: [] };
 
-          const file = new File([blob], "omikuji_daikichi.png", {
-            type: "image/png",
-          });
+              // ✅ デバッグ（鍵があるときだけ force を有効化）
+              const params = new URLSearchParams(location.search);
+              const DEBUG_KEY = "tane2026";
+              const debugOk = params.get("debug") === DEBUG_KEY;
 
-          if (navigator.canShare?.({ files: [file] }) && navigator.share) {
-            await navigator.share({
-              title: "今日の大吉",
-              text: "#今日の大吉",
-              files: [file],
+              if (debugOk && params.get("force") === "kyou") {
+                const kyouMsg =
+                  texts.kyou && texts.kyou.length ? texts.kyou[0] : "凶";
+                return { title: "凶", msg: kyouMsg, isKyou: true };
+              }
+              if (debugOk && params.get("force") === "daikichi") {
+                const arr =
+                  texts.daikichi && texts.daikichi.length
+                    ? texts.daikichi
+                    : [
+                        "今日ここに来たこと自体が、もう当たり。\n小さく動けば、運は勝手に追いつく。",
+                      ];
+                const idx = 0;
+                return { title: "大吉", msg: arr[idx], isKyou: false };
+              }
+
+              const deviceId = getDeviceId();
+              const today = todayKeyJST();
+              const baseKey = `${deviceId}:${today}`;
+
+              const r = hash32(baseKey) % PROB_KYOU_DENOM;
+              const isKyou = r < PROB_KYOU_NUM;
+
+              if (isKyou) {
+                const kyouMsg =
+                  texts.kyou && texts.kyou.length ? texts.kyou[0] : "凶";
+                return { title: "凶", msg: kyouMsg, isKyou: true };
+              }
+
+              const arr =
+                texts.daikichi && texts.daikichi.length
+                  ? texts.daikichi
+                  : [
+                      "今日ここに来たこと自体が、もう当たり。\n小さく動けば、運は勝手に追いつく。",
+                    ];
+
+              const idx = hash32(baseKey + ":msg") % arr.length;
+              return { title: "大吉", msg: arr[idx], isKyou: false };
+            }
+
+            // ★ポイント：ロックは「今日引いた後」だけ効く
+            function isLockedToday() {
+              const today = todayKeyJST();
+              const done = localStorage.getItem(KEY_OSAISEN_DONE_DATE);
+              const drawn = localStorage.getItem(KEY_DRAWN_DATE);
+
+              if (drawn !== today) return false; // 引いてないなら封印しない
+
+              const result = pickOmikujiTodayFixed();
+              return result.isKyou && done !== today;
+            }
+
+            function showOsaisen() {
+              osaisenOverlay.classList.add("show");
+            }
+            function hideOsaisen() {
+              osaisenOverlay.classList.remove("show");
+            }
+
+            // ✅ paid=1 で戻ってきたタブが「支払い完了」を記録＆元タブへ通知
+            function handlePaidParam() {
+              const u = new URL(location.href);
+              const paid = (u.searchParams.get("paid") || "").trim();
+
+              if (paid === "1") {
+                const today = todayKeyJST();
+                localStorage.setItem(KEY_OSAISEN_DONE_DATE, today);
+
+                const unlockKey = getUnlockKey();
+
+                // 先に通知（元タブ即反映）
+                localStorage.setItem(KEY_PAID_SIGNAL, String(Date.now()));
+
+                // GASへ記録（閉じる前に確実に投げる）
+                recordPaidToGas_(unlockKey, today);
+
+                // URLを綺麗に
+                u.searchParams.delete("paid");
+                history.replaceState(null, "", u.toString());
+
+                // ✅ ここが重要：すぐ閉じない（0.8秒待つ）
+                setTimeout(() => {
+                  try {
+                    window.close();
+                  } catch (e) {}
+                }, 800);
+              }
+            }
+
+            // ✅ 元タブ側：支払い完了通知を受けたら即UI反映
+            window.addEventListener("storage", (e) => {
+              if (e.key === KEY_PAID_SIGNAL) {
+                const today = todayKeyJST();
+                localStorage.setItem(KEY_OSAISEN_DONE_DATE, today);
+                hideOsaisen();
+                refreshButtonLabel();
+              }
             });
-            toastDai("共有メニューからX/Instagramを選んでね");
-          } else {
-            toastDai("この端末は画像共有に未対応。『画像を保存』が確実！");
-          }
-        } catch (e) {
-          console.error(e);
-          toastDai("共有に失敗：" + (e?.message || e));
-        }
-      });
 
-      // 起動時リンク更新
-      refreshDaiShareLinks();
-      refreshKyouShareLinks();
+            function handleResetParam() {
+              const u = new URL(location.href);
+              const reset = (u.searchParams.get("reset") || "").trim();
+
+              if (reset === "1") {
+                localStorage.removeItem(KEY_DEVICE_ID);
+                localStorage.removeItem(KEY_OSAISEN_DONE_DATE);
+                localStorage.removeItem(KEY_DRAWN_DATE);
+                localStorage.removeItem("unlock_key");
+
+                u.searchParams.delete("reset");
+                history.replaceState(null, "", u.toString());
+                location.reload();
+              }
+            }
+
+            function refreshButtonLabel() {
+              if (isLockedToday()) {
+                btn.textContent = "賽銭しないと引けない";
+              } else {
+                btn.textContent = "おみくじを引く";
+              }
+            }
+
+            async function distortAndReveal() {
+              if (isLockedToday()) {
+                showOsaisen();
+                return;
+              }
+
+              btn.disabled = true;
+              overlay.classList.remove("show");
+              hideOsaisen();
+
+              turb.setAttribute("seed", String(randInt(9999) + 1));
+              body.classList.add("distort");
+
+              const start = performance.now();
+              const dur = 1600;
+
+              function tick(now) {
+                const t = Math.min(1, (now - start) / dur);
+                const amp = Math.sin(t * Math.PI);
+                const bf = 0.01 + amp * 0.02;
+                turb.setAttribute("baseFrequency", bf.toFixed(4));
+                if (t < 1) requestAnimationFrame(tick);
+              }
+              requestAnimationFrame(tick);
+
+              await sleep(dur);
+
+              const result = pickOmikujiTodayFixed();
+
+              localStorage.setItem(KEY_DRAWN_DATE, todayKeyJST());
+
+              body.classList.remove("distort");
+
+              if (result.isKyou) {
+                showOsaisen();
+              } else {
+                titleEl.textContent = result.title;
+                msgEl.textContent = result.msg;
+                overlay.classList.add("show");
+              }
+
+              await sleep(300);
+              btn.disabled = false;
+
+              refreshButtonLabel();
+            }
+
+            btn.addEventListener("click", distortAndReveal);
+
+            overlay.addEventListener("click", () => {
+              overlay.classList.remove("show");
+            });
+
+            osaisenGo.addEventListener("click", goToOsaisen);
+
+            // 起動時
+            handlePaidParam();
+            handleResetParam();
+            refreshButtonLabel();
+
+            // =========================
+            // 凶：共有（画像化 → 共有/保存） + X投稿 + URLコピー（安定版）
+            // =========================
+            const kyouShareImg = document.getElementById("kyouShareImg");
+            const kyouSaveImg = document.getElementById("kyouSaveImg");
+            const kyouPostX = document.getElementById("kyouPostX");
+            const kyouCopyUrl = document.getElementById("kyouCopyUrl");
+            const shareMsg = document.getElementById("shareMsg");
+
+            function toastShare(t) {
+              shareMsg.textContent = t;
+              clearTimeout(window.__shareToastTimer);
+              window.__shareToastTimer = setTimeout(
+                () => (shareMsg.textContent = ""),
+                2400,
+              );
+            }
+
+            function buildKyouShareText() {
+              const title =
+                document.getElementById("osaisenTitle")?.innerText?.trim() || "凶";
+              const msg =
+                document.getElementById("osaisenMsg")?.innerText?.trim() || "";
+              return `${title}\n\n${msg}\n\n#今日の大吉\n${location.href}`;
+            }
+
+            function refreshKyouShareLinks() {
+              const text = buildKyouShareText();
+              kyouPostX.href =
+                "https://twitter.com/intent/tweet?text=" + encodeURIComponent(text);
+            }
+
+            async function renderKyouCardPack() {
+              if (typeof html2canvas !== "function") {
+                throw new Error("html2canvas未読込（CDN/読み込み順/ネット）");
+              }
+
+              const el = document.getElementById("osaisenCard");
+              if (document.fonts?.ready) await document.fonts.ready;
+
+              const canvas = await html2canvas(el, {
+                scale: 2,
+                backgroundColor: "#07080c",
+                useCORS: true,
+                onclone: (doc) => {
+                  const c = doc.getElementById("osaisenCard");
+                  if (c) {
+                    c.style.background = "rgba(0,0,0,0.65)";
+                    c.style.backdropFilter = "none";
+                    c.style.webkitBackdropFilter = "none";
+                  }
+                },
+              });
+
+              const blob = await new Promise((resolve) =>
+                canvas.toBlob(resolve, "image/png", 1),
+              );
+
+              return { blob, canvas };
+            }
+
+            // URLコピー
+            kyouCopyUrl.addEventListener("click", async () => {
+              try {
+                await navigator.clipboard.writeText(location.href);
+                toastShare("URLをコピーしました");
+              } catch (e) {
+                console.error(e);
+                toastShare("コピーできませんでした");
+              }
+            });
+
+            // 画像保存（toBlobがnullでも toDataURL で確実に保存）
+            kyouSaveImg.addEventListener("click", async () => {
+              try {
+                const { blob, canvas } = await renderKyouCardPack();
+
+                if (!blob) {
+                  const dataUrl = canvas.toDataURL("image/png");
+                  const a = document.createElement("a");
+                  a.href = dataUrl;
+                  a.download = "omikuji_kyou.png";
+                  a.click();
+                  toastShare(
+                    "画像を保存しました。X/インスタで画像を選んで投稿してね",
+                  );
+                  return;
+                }
+
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "omikuji_kyou.png";
+                a.click();
+                URL.revokeObjectURL(url);
+
+                toastShare("画像を保存しました。X/インスタで画像を選んで投稿してね");
+              } catch (e) {
+                console.error(e);
+                toastShare("保存に失敗：" + (e?.message || e));
+              }
+            });
+
+            // 画像で共有（PCは未対応が多い。未対応なら保存へ誘導）
+            kyouShareImg.addEventListener("click", async () => {
+              try {
+                const { blob } = await renderKyouCardPack();
+
+                if (!blob) {
+                  toastShare("この端末は画像共有に未対応。『画像を保存』が確実！");
+                  return;
+                }
+
+                const file = new File([blob], "omikuji_kyou.png", {
+                  type: "image/png",
+                });
+
+                if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+                  await navigator.share({
+                    title: "今日の大吉",
+                    text: "#今日の大吉",
+                    files: [file],
+                  });
+                  toastShare("共有メニューからX/Instagramを選んでね");
+                } else {
+                  toastShare("この端末は画像共有に未対応。『画像を保存』が確実！");
+                }
+              } catch (e) {
+                console.error(e);
+                toastShare("共有に失敗：" + (e?.message || e));
+              }
+            });
+
+            // =========================
+            // 大吉：共有（画像化 → 共有/保存） + X投稿 + URLコピー（凶と同じ方式）
+            // =========================
+            const daiShareImg = document.getElementById("daiShareImg");
+            const daiSaveImg = document.getElementById("daiSaveImg");
+            const daiPostX = document.getElementById("daiPostX");
+            const daiCopyUrl = document.getElementById("daiCopyUrl");
+            const daiShareMsg = document.getElementById("daiShareMsg");
+
+            function toastDai(t) {
+              daiShareMsg.textContent = t;
+              clearTimeout(window.__daiToastTimer);
+              window.__daiToastTimer = setTimeout(
+                () => (daiShareMsg.textContent = ""),
+                2400,
+              );
+            }
+
+            function buildDaiShareText() {
+              const title =
+                document.getElementById("resultTitle")?.innerText?.trim() || "大吉";
+              const msg =
+                document.getElementById("resultMsg")?.innerText?.trim() || "";
+              return `${title}\n\n${msg}\n\n#今日の大吉\n${location.href}`;
+            }
+
+            function refreshDaiShareLinks() {
+              const text = buildDaiShareText();
+              daiPostX.href =
+                "https://twitter.com/intent/tweet?text=" + encodeURIComponent(text);
+            }
+
+            async function renderDaiCardPack() {
+              if (typeof html2canvas !== "function") {
+                throw new Error("html2canvas未読込（CDN/読み込み順/ネット）");
+              }
+
+              const el = document.getElementById("resultCard");
+              if (document.fonts?.ready) await document.fonts.ready;
+
+              const canvas = await html2canvas(el, {
+                scale: 2,
+                backgroundColor: "#07080c",
+                useCORS: true,
+                onclone: (doc) => {
+                  const c = doc.getElementById("resultCard");
+                  if (c) {
+                    c.style.background = "rgba(0,0,0,0.55)";
+                    c.style.backdropFilter = "none";
+                    c.style.webkitBackdropFilter = "none";
+                  }
+                },
+              });
+
+              const blob = await new Promise((resolve) =>
+                canvas.toBlob(resolve, "image/png", 1),
+              );
+
+              return { blob, canvas };
+            }
+
+            // URLコピー（大吉）
+            daiCopyUrl.addEventListener("click", async () => {
+              try {
+                await navigator.clipboard.writeText(location.href);
+                toastDai("URLをコピーしました");
+              } catch (e) {
+                console.error(e);
+                toastDai("コピーできませんでした");
+              }
+            });
+
+            // 画像保存（大吉）
+            daiSaveImg.addEventListener("click", async () => {
+              try {
+                const { blob, canvas } = await renderDaiCardPack();
+
+                if (!blob) {
+                  const dataUrl = canvas.toDataURL("image/png");
+                  const a = document.createElement("a");
+                  a.href = dataUrl;
+                  a.download = "omikuji_daikichi.png";
+                  a.click();
+                  toastDai("画像を保存しました。X/インスタで画像を選んで投稿してね");
+                  return;
+                }
+
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "omikuji_daikichi.png";
+                a.click();
+                URL.revokeObjectURL(url);
+
+                toastDai("画像を保存しました。X/インスタで画像を選んで投稿してね");
+              } catch (e) {
+                console.error(e);
+                toastDai("保存に失敗：" + (e?.message || e));
+              }
+            });
+
+            // 画像で共有（大吉）
+            daiShareImg.addEventListener("click", async () => {
+              try {
+                const { blob } = await renderDaiCardPack();
+
+                if (!blob) {
+                  toastDai("この端末は画像共有に未対応。『画像を保存』が確実！");
+                  return;
+                }
+
+                const file = new File([blob], "omikuji_daikichi.png", {
+                  type: "image/png",
+                });
+
+                if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+                  await navigator.share({
+                    title: "今日の大吉",
+                    text: "#今日の大吉",
+                    files: [file],
+                  });
+                  toastDai("共有メニューからX/Instagramを選んでね");
+                } else {
+                  toastDai("この端末は画像共有に未対応。『画像を保存』が確実！");
+                }
+              } catch (e) {
+                console.error(e);
+                toastDai("共有に失敗：" + (e?.message || e));
+              }
+            });
+
+            // 起動時リンク更新
+            refreshDaiShareLinks();
+            refreshKyouShareLinks();
     </script>
   </body>
 </html>
