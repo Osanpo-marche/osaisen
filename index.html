@@ -242,7 +242,7 @@
         position: fixed;
         inset: 0;
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: center;
         opacity: 0;
         pointer-events: none;
@@ -251,6 +251,9 @@
         background: rgba(0, 0, 0, 0.35);
         backdrop-filter: blur(2px);
         -webkit-backdrop-filter: blur(2px);
+        overflow-y: auto;
+        padding: 24px 12px;
+        box-sizing: border-box;
       }
 
       #osaisenOverlay.show {
@@ -270,6 +273,9 @@
         text-align: center;
         color: rgba(255, 255, 255, 0.95);
         letter-spacing: 0.12em;
+        max-height: calc(100vh - 48px);
+        overflow-y: auto;
+        box-sizing: border-box;
       }
 
       #osaisenTitle {
@@ -431,6 +437,16 @@
           margin-bottom: 46px !important;
         }
 
+        #osaisenOverlay {
+          padding: 12px 10px;
+        }
+
+        #osaisenCard {
+          width: min(94vw, 520px);
+          max-height: calc(100vh - 24px);
+          padding: 16px 14px 14px;
+        }
+
         #resultCard .shareRow {
           margin-top: 28px !important;
         }
@@ -555,7 +571,8 @@
       // =========================
       // PayPal設定
       // =========================
-      const PAYPAL_CLIENT_ID = "ASOzo8Ol7R8omQLgiD1IcyAQl_dHXPG4EeU9FQv53AYm6FHA6WEyyulpAo8Z8jZCHuxRTaOmy-LIdn-Z";
+      const PAYPAL_CLIENT_ID =
+        "ASOzo8Ol7R8omQLgiD1IcyAQl_dHXPG4EeU9FQv53AYm6FHA6WEyyulpAo8Z8jZCHuxRTaOmy-LIdn-Z";
       const OSAISEN_AMOUNT = "100";
       const OSAISEN_CURRENCY = "JPY";
 
