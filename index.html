@@ -69,24 +69,20 @@
             calc(55% + var(--shift-y));
         }
 
-        /* 汝〜巡りなり：上へ */
         .box {
           transform: translateY(-70px);
         }
 
-        /* 汝〜巡りなり：右へ */
         .lead,
         .message {
           transform: translateX(16px);
         }
 
-        /* 大吉の文章：大きく */
         #resultMsg {
           font-size: 22px;
           line-height: 2.05;
         }
 
-        /* 共有欄：もっと下へ */
         #resultCard .shareRow {
           margin-top: 28px;
         }
@@ -314,6 +310,7 @@
         display: flex;
         gap: 10px;
         justify-content: center;
+        flex-wrap: wrap;
       }
 
       .btn {
@@ -334,6 +331,7 @@
       .btn:active {
         transform: translateY(1px) scale(0.995);
       }
+
       .btn.primary {
         background: rgba(255, 255, 255, 0.14);
       }
@@ -347,7 +345,6 @@
         line-height: 1.6;
       }
 
-      /* ===== 共有UI（凶モーダル内） ===== */
       .shareRow {
         margin-top: 0px;
         display: flex;
@@ -389,6 +386,7 @@
         line-height: 1.4;
         text-align: center;
       }
+
       .shareHint {
         width: 100%;
         margin-top: 4px;
@@ -399,16 +397,40 @@
         text-align: center;
       }
 
-      /* ===== スマホだけ：大吉本文をデカく＆共有欄を下へ ===== */
+      #paypalArea {
+        margin-top: 14px;
+        display: none;
+      }
+
+      #paypalArea.show {
+        display: block;
+      }
+
+      #paypalButtons {
+        margin-top: 12px;
+        min-height: 46px;
+      }
+
+      #paypalStatus {
+        margin-top: 10px;
+        font-size: 12px;
+        line-height: 1.6;
+        opacity: 0.82;
+        letter-spacing: 0.08em;
+      }
+
+      #paypalStatus.error {
+        color: #ffd3d3;
+        opacity: 0.95;
+      }
+
       @media (max-width: 768px) {
-        /* 大吉の本文（2行のところ）をデカく */
         #resultMsg {
           font-size: 22px !important;
           line-height: 2.2 !important;
           margin-bottom: 46px !important;
         }
 
-        /* 共有UIを下に落とす（ボタン群の開始位置） */
         #resultCard .shareRow {
           margin-top: 28px !important;
         }
@@ -455,7 +477,6 @@
         <div id="resultTitle">大吉</div>
         <p id="resultMsg">今日はもう勝っている。</p>
 
-        <!-- 共有UI（大吉） -->
         <div class="shareRow">
           <button id="daiShareImg" class="shareBtn" type="button">
             画像で共有
@@ -496,12 +517,16 @@
           </button>
         </div>
 
+        <div id="paypalArea" aria-live="polite">
+          <div id="paypalButtons"></div>
+          <div id="paypalStatus"></div>
+        </div>
+
         <div class="note">
           ※賽銭しても、今日の判定は凶のままです。<br />
           明日になれば、またお神籤がひけます
         </div>
 
-        <!-- 共有UI -->
         <div class="shareRow">
           <button id="kyouShareImg" class="shareBtn" type="button">
             画像で共有
@@ -523,17 +548,16 @@
       </div>
     </div>
 
-    <!-- html2canvas（先に読み込む） -->
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-
     <script src="./texts.js"></script>
 
     <script>
       // =========================
-      // Stripe Payment Link（テストモード）
+      // PayPal設定
       // =========================
-      const STRIPE_PAYMENT_LINK =
-        "https://buy.stripe.com/test_4gM14o7FL4tZ12d3lKbEA00";
+      const PAYPAL_CLIENT_ID = "ASOzo8Ol7R8omQLgiD1IcyAQl_dHXPG4EeU9FQv53AYm6FHA6WEyyulpAo8Z8jZCHuxRTaOmy-LIdn-Z";
+      const OSAISEN_AMOUNT = "100";
+      const OSAISEN_CURRENCY = "JPY";
 
       // =========================
       // GAS Paid Registry
@@ -543,16 +567,16 @@
       const GAS_TOKEN = "tane2026_paid_token";
 
       // =========================
-      // 凶の確率（本番は 5000 / 1 とかに）
+      // 凶の確率
       // =========================
       const PROB_KYOU_DENOM = 365;
       const PROB_KYOU_NUM = 1;
 
       // localStorage keys
       const KEY_DEVICE_ID = "daikichi_device_id";
-      const KEY_OSAISEN_DONE_DATE = "daikichi_osaisen_done_date"; // 賽銭済み日（YYYY-MM-DD）
-      const KEY_DRAWN_DATE = "daikichi_drawn_date"; // 今日「引いた」日（YYYY-MM-DD）
-      const KEY_PAID_SIGNAL = "daikichi_paid_signal"; // タブ間同期用
+      const KEY_OSAISEN_DONE_DATE = "daikichi_osaisen_done_date";
+      const KEY_DRAWN_DATE = "daikichi_drawn_date";
+      const KEY_PAID_SIGNAL = "daikichi_paid_signal";
 
       const body = document.body;
       const btn = document.getElementById("drawBtn");
@@ -563,12 +587,22 @@
 
       const osaisenOverlay = document.getElementById("osaisenOverlay");
       const osaisenGo = document.getElementById("osaisenGo");
+      const paypalArea = document.getElementById("paypalArea");
+      const paypalButtons = document.getElementById("paypalButtons");
+      const paypalStatus = document.getElementById("paypalStatus");
+
+      let paypalSdkLoadingPromise = null;
+      let paypalButtonsRendered = false;
 
       function sleep(ms) {
         return new Promise((r) => setTimeout(r, ms));
       }
 
-      // 端末に固定の解放キーを作って保存（永久解放の“本人確認”代わり）
+      function setPaypalStatus(text, isError = false) {
+        paypalStatus.textContent = text || "";
+        paypalStatus.classList.toggle("error", !!isError);
+      }
+
       function getUnlockKey() {
         let key = localStorage.getItem("unlock_key");
         if (key) return key;
@@ -613,13 +647,144 @@
         }
       }
 
-      // 課金ページを開く（支払いを「この端末キー」に紐付ける）
-      function goToOsaisen() {
-        const key = getUnlockKey();
-        const url = `${STRIPE_PAYMENT_LINK}?client_reference_id=${encodeURIComponent(
-          key,
-        )}`;
-        window.open(url, "_blank", "noopener");
+      function markPaidSuccess() {
+        const today = todayKeyJST();
+        const unlockKey = getUnlockKey();
+
+        localStorage.setItem(KEY_OSAISEN_DONE_DATE, today);
+        localStorage.setItem(KEY_PAID_SIGNAL, String(Date.now()));
+        recordPaidToGas_(unlockKey, today);
+
+        hideOsaisen();
+        refreshButtonLabel();
+      }
+
+      async function loadPayPalSdk() {
+        if (window.paypal) return window.paypal;
+
+        if (paypalSdkLoadingPromise) return paypalSdkLoadingPromise;
+
+        paypalSdkLoadingPromise = new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src =
+            "https://www.paypal.com/sdk/js?client-id=" +
+            encodeURIComponent(PAYPAL_CLIENT_ID) +
+            "&currency=" +
+            encodeURIComponent(OSAISEN_CURRENCY);
+          s.async = true;
+          s.onload = () => {
+            if (window.paypal) {
+              resolve(window.paypal);
+            } else {
+              reject(new Error("PayPal SDK の読み込みに失敗しました"));
+            }
+          };
+          s.onerror = () =>
+            reject(new Error("PayPal SDK の読み込みに失敗しました"));
+          document.head.appendChild(s);
+        });
+
+        return paypalSdkLoadingPromise;
+      }
+
+      async function postJson(url, bodyObj) {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyObj),
+        });
+
+        let json = {};
+        try {
+          json = await res.json();
+        } catch (e) {
+          throw new Error("サーバー応答の解析に失敗しました");
+        }
+
+        if (!res.ok || !json.ok) {
+          throw new Error(json.error || "決済処理に失敗しました");
+        }
+
+        return json;
+      }
+
+      async function ensurePaypalButtons() {
+        if (paypalButtonsRendered) return;
+
+        setPaypalStatus("PayPalを読み込み中...");
+        const paypal = await loadPayPalSdk();
+        const unlockKey = getUnlockKey();
+
+        paypal
+          .Buttons({
+            style: {
+              shape: "pill",
+              layout: "vertical",
+              label: "pay",
+              height: 45,
+            },
+
+            createOrder: async () => {
+              setPaypalStatus("注文を作成中...");
+              const json = await postJson(
+                "/.netlify/functions/create-paypal-order",
+                {
+                  amount: OSAISEN_AMOUNT,
+                  currency: OSAISEN_CURRENCY,
+                  unlockKey,
+                },
+              );
+
+              setPaypalStatus("");
+              return json.orderID;
+            },
+
+            onApprove: async (data) => {
+              setPaypalStatus("支払いを確定中...");
+              const json = await postJson(
+                "/.netlify/functions/capture-paypal-order",
+                {
+                  orderID: data.orderID,
+                  unlockKey,
+                },
+              );
+
+              console.log("PayPal capture success", json);
+              setPaypalStatus("賽銭ありがとうございました");
+              markPaidSuccess();
+            },
+
+            onCancel: () => {
+              setPaypalStatus("支払いはキャンセルされました");
+            },
+
+            onError: (err) => {
+              console.error(err);
+              setPaypalStatus(
+                "PayPalの処理でエラーが出ました。少し時間を置いて再度お試しください。",
+                true,
+              );
+            },
+          })
+          .render("#paypalButtons");
+
+        paypalButtonsRendered = true;
+        setPaypalStatus("");
+      }
+
+      async function goToOsaisen() {
+        try {
+          osaisenGo.disabled = true;
+          osaisenGo.textContent = "PayPalを準備中...";
+          paypalArea.classList.add("show");
+          await ensurePaypalButtons();
+          osaisenGo.style.display = "none";
+        } catch (e) {
+          console.error(e);
+          setPaypalStatus(e?.message || "PayPalの準備に失敗しました", true);
+          osaisenGo.disabled = false;
+          osaisenGo.textContent = "賽銭する";
+        }
       }
 
       function getDeviceId() {
@@ -658,7 +823,6 @@
       function pickOmikujiTodayFixed() {
         const texts = window.OMICHIJI_TEXTS || { daikichi: [], kyou: [] };
 
-        // ✅ デバッグ（鍵があるときだけ force を有効化）
         const params = new URLSearchParams(location.search);
         const DEBUG_KEY = "tane2026";
         const debugOk = params.get("debug") === DEBUG_KEY;
@@ -703,13 +867,12 @@
         return { title: "大吉", msg: arr[idx], isKyou: false };
       }
 
-      // ★ポイント：ロックは「今日引いた後」だけ効く
       function isLockedToday() {
         const today = todayKeyJST();
         const done = localStorage.getItem(KEY_OSAISEN_DONE_DATE);
         const drawn = localStorage.getItem(KEY_DRAWN_DATE);
 
-        if (drawn !== today) return false; // 引いてないなら封印しない
+        if (drawn !== today) return false;
 
         const result = pickOmikujiTodayFixed();
         return result.isKyou && done !== today;
@@ -718,32 +881,27 @@
       function showOsaisen() {
         osaisenOverlay.classList.add("show");
       }
+
       function hideOsaisen() {
         osaisenOverlay.classList.remove("show");
       }
 
-      // ✅ paid=1 で戻ってきたタブが「支払い完了」を記録＆元タブへ通知
+      // 旧 paid=1 戻り方式の保険
       function handlePaidParam() {
         const u = new URL(location.href);
         const paid = (u.searchParams.get("paid") || "").trim();
 
         if (paid === "1") {
           const today = todayKeyJST();
-          localStorage.setItem(KEY_OSAISEN_DONE_DATE, today);
-
           const unlockKey = getUnlockKey();
 
-          // 先に通知（元タブ即反映）
+          localStorage.setItem(KEY_OSAISEN_DONE_DATE, today);
           localStorage.setItem(KEY_PAID_SIGNAL, String(Date.now()));
-
-          // GASへ記録（閉じる前に確実に投げる）
           recordPaidToGas_(unlockKey, today);
 
-          // URLを綺麗に
           u.searchParams.delete("paid");
           history.replaceState(null, "", u.toString());
 
-          // ✅ ここが重要：すぐ閉じない（0.8秒待つ）
           setTimeout(() => {
             try {
               window.close();
@@ -752,7 +910,6 @@
         }
       }
 
-      // ✅ 元タブ側：支払い完了通知を受けたら即UI反映
       window.addEventListener("storage", (e) => {
         if (e.key === KEY_PAID_SIGNAL) {
           const today = todayKeyJST();
@@ -841,13 +998,12 @@
 
       osaisenGo.addEventListener("click", goToOsaisen);
 
-      // 起動時
       handlePaidParam();
       handleResetParam();
       refreshButtonLabel();
 
       // =========================
-      // 凶：共有（画像化 → 共有/保存） + X投稿 + URLコピー（安定版）
+      // 凶：共有
       // =========================
       const kyouShareImg = document.getElementById("kyouShareImg");
       const kyouSaveImg = document.getElementById("kyouSaveImg");
@@ -907,7 +1063,6 @@
         return { blob, canvas };
       }
 
-      // URLコピー
       kyouCopyUrl.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(location.href);
@@ -918,7 +1073,6 @@
         }
       });
 
-      // 画像保存（toBlobがnullでも toDataURL で確実に保存）
       kyouSaveImg.addEventListener("click", async () => {
         try {
           const { blob, canvas } = await renderKyouCardPack();
@@ -949,7 +1103,6 @@
         }
       });
 
-      // 画像で共有（PCは未対応が多い。未対応なら保存へ誘導）
       kyouShareImg.addEventListener("click", async () => {
         try {
           const { blob } = await renderKyouCardPack();
@@ -980,7 +1133,7 @@
       });
 
       // =========================
-      // 大吉：共有（画像化 → 共有/保存） + X投稿 + URLコピー（凶と同じ方式）
+      // 大吉：共有
       // =========================
       const daiShareImg = document.getElementById("daiShareImg");
       const daiSaveImg = document.getElementById("daiSaveImg");
@@ -1040,7 +1193,6 @@
         return { blob, canvas };
       }
 
-      // URLコピー（大吉）
       daiCopyUrl.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(location.href);
@@ -1051,7 +1203,6 @@
         }
       });
 
-      // 画像保存（大吉）
       daiSaveImg.addEventListener("click", async () => {
         try {
           const { blob, canvas } = await renderDaiCardPack();
@@ -1080,7 +1231,6 @@
         }
       });
 
-      // 画像で共有（大吉）
       daiShareImg.addEventListener("click", async () => {
         try {
           const { blob } = await renderDaiCardPack();
@@ -1110,7 +1260,6 @@
         }
       });
 
-      // 起動時リンク更新
       refreshDaiShareLinks();
       refreshKyouShareLinks();
     </script>
