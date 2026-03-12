@@ -412,8 +412,16 @@
         display: block;
       }
 
+      #paypalShell {
+        margin-top: 10px;
+        background: rgba(255, 255, 255, 0.96);
+        border-radius: 18px;
+        padding: 14px 14px 12px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      }
+
       #paypalButtons {
-        margin-top: 12px;
+        margin-top: 0;
         min-height: 46px;
       }
 
@@ -421,13 +429,13 @@
         margin-top: 10px;
         font-size: 12px;
         line-height: 1.6;
-        opacity: 0.82;
-        letter-spacing: 0.08em;
+        color: #222;
+        letter-spacing: 0.04em;
+        opacity: 1;
       }
 
       #paypalStatus.error {
-        color: #ffd3d3;
-        opacity: 0.95;
+        color: #b00020;
       }
 
       @media (max-width: 768px) {
@@ -534,8 +542,10 @@
         </div>
 
         <div id="paypalArea" aria-live="polite">
-          <div id="paypalButtons"></div>
-          <div id="paypalStatus"></div>
+          <div id="paypalShell">
+            <div id="paypalButtons"></div>
+            <div id="paypalStatus"></div>
+          </div>
         </div>
 
         <div class="note">
