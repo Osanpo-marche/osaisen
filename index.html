@@ -41,7 +41,7 @@
 
         transform: scale(1);
         transform-origin: 50% 50%;
-        animation: toriiApproach 6s ease-out forwards;
+        animation: toriiApproach 4.5s ease-out forwards;
         will-change: transform;
         z-index: -1;
       }
@@ -95,15 +95,25 @@
         }
 
         #resultMsg {
-          font-size: 22px;
-          line-height: 2.05;
+          font-size: 22px !important;
+          line-height: 2.2 !important;
+          margin-bottom: 46px !important;
+        }
+
+        #osaisenOverlay {
+          padding: 12px 10px;
+        }
+
+        #osaisenCard {
+          width: min(94vw, 520px);
+          max-height: calc(100vh - 24px);
+          padding: 16px 14px 14px;
         }
 
         #resultCard .shareRow {
-          margin-top: 28px;
+          margin-top: 28px !important;
         }
       }
-
 
       @keyframes toriiApproachMobile {
         from {
@@ -313,12 +323,8 @@
         font-size: 14px;
         line-height: 1.75;
         opacity: 0.92;
-        margin: 0 0 30px;
+        margin: 0 0 18px;
         letter-spacing: 0.1em;
-      }
-
-      #osaisenTitle {
-        margin-bottom: 16px;
       }
 
       .kyou-word {
@@ -326,10 +332,6 @@
         text-shadow:
           0 0 8px rgba(77, 89, 255, 0.35),
           0 0 18px rgba(77, 89, 255, 0.22);
-      }
-
-      #osaisenMsg {
-        line-height: 1.55;
       }
 
       #osaisenMsg br.gap {
@@ -429,6 +431,71 @@
         text-align: center;
       }
 
+      #osaisenAmountBox {
+        margin: 0 0 18px;
+      }
+
+      .osaisenAmountLabel {
+        margin-bottom: 10px;
+        font-size: 13px;
+        opacity: 0.9;
+        letter-spacing: 0.08em;
+      }
+
+      .osaisenAmountChoices {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      .amountChip {
+        min-width: 92px;
+        height: 40px;
+        padding: 0 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.95);
+        font-family: serif;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+      }
+
+      .amountChip.selected {
+        background: rgba(255, 255, 255, 0.22);
+        border-color: rgba(255, 255, 255, 0.45);
+      }
+
+      .amountChipFree {
+        min-width: 130px;
+      }
+
+      .freeAmountRow {
+        margin-top: 12px;
+        display: flex;
+        justify-content: center;
+      }
+
+      #freeAmountInput {
+        width: min(92vw, 260px);
+        height: 42px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        font-family: serif;
+        font-size: 14px;
+        letter-spacing: 0.06em;
+        padding: 0 14px;
+        box-sizing: border-box;
+      }
+
+      #freeAmountInput::placeholder {
+        color: rgba(255, 255, 255, 0.55);
+      }
+
       #paypalArea {
         margin-top: 14px;
         display: none;
@@ -465,24 +532,22 @@
       }
 
       @media (max-width: 768px) {
-        #resultMsg {
-          font-size: 22px !important;
-          line-height: 2.2 !important;
-          margin-bottom: 46px !important;
+        .osaisenAmountChoices {
+          gap: 8px;
         }
 
-        #osaisenOverlay {
-          padding: 12px 10px;
+        .amountChip {
+          min-width: 84px;
+          font-size: 12px;
+          padding: 0 12px;
         }
 
-        #osaisenCard {
-          width: min(94vw, 520px);
-          max-height: calc(100vh - 24px);
-          padding: 16px 14px 14px;
+        .amountChipFree {
+          min-width: 120px;
         }
 
-        #resultCard .shareRow {
-          margin-top: 28px !important;
+        #freeAmountInput {
+          width: 100%;
         }
       }
     </style>
@@ -490,6 +555,7 @@
 
   <body>
     <div id="bgZoom" aria-hidden="true"></div>
+
     <svg
       width="0"
       height="0"
@@ -529,18 +595,10 @@
         <p id="resultMsg">今日はもう勝っている。</p>
 
         <div class="shareRow">
-          <button id="daiShareImg" class="shareBtn" type="button">
-            画像で共有
-          </button>
-          <button id="daiSaveImg" class="shareBtn" type="button">
-            画像を保存
-          </button>
-          <a id="daiPostX" class="shareBtn" target="_blank" rel="noopener"
-            >Xへポスト</a
-          >
-          <button id="daiCopyUrl" class="shareBtn" type="button">
-            URLをコピー
-          </button>
+          <button id="daiShareImg" class="shareBtn" type="button">画像で共有</button>
+          <button id="daiSaveImg" class="shareBtn" type="button">画像を保存</button>
+          <a id="daiPostX" class="shareBtn" target="_blank" rel="noopener">Xへポスト</a>
+          <button id="daiCopyUrl" class="shareBtn" type="button">URLをコピー</button>
 
           <div class="shareHint">
             お神籤は１日１度しかひけません。<br />
@@ -557,15 +615,40 @@
         <div id="osaisenTitle">
           あなたは<span class="kyou-word">凶運</span>の持ち主です。
         </div>
+
         <p id="osaisenMsg">
           この端末は 1/365 の確立の「凶」を引いた。<br class="gap" />
           その凶運は、強運の入口。封印を解くなら、賽銭をひとつ。
         </p>
 
+        <div id="osaisenAmountBox">
+          <div class="osaisenAmountLabel">賽銭の額を選ぶ</div>
+
+          <div class="osaisenAmountChoices">
+            <button type="button" class="amountChip selected" data-amount="100">100円</button>
+            <button type="button" class="amountChip" data-amount="300">300円</button>
+            <button type="button" class="amountChip" data-amount="500">500円</button>
+            <button type="button" class="amountChip" data-amount="1000">1000円</button>
+            <button type="button" class="amountChip amountChipFree" data-amount="free">
+              自由に入れる
+            </button>
+          </div>
+
+          <div id="freeAmountRow" class="freeAmountRow" hidden>
+            <input
+              id="freeAmountInput"
+              type="number"
+              inputmode="numeric"
+              min="100"
+              max="10000"
+              step="1"
+              placeholder="100〜10000円"
+            />
+          </div>
+        </div>
+
         <div class="osaisen-actions">
-          <button id="osaisenGo" class="btn primary" type="button">
-            賽銭する
-          </button>
+          <button id="osaisenGo" class="btn primary" type="button">賽銭する</button>
         </div>
 
         <div id="paypalArea" aria-live="polite">
@@ -581,18 +664,10 @@
         </div>
 
         <div class="shareRow">
-          <button id="kyouShareImg" class="shareBtn" type="button">
-            画像で共有
-          </button>
-          <button id="kyouSaveImg" class="shareBtn" type="button">
-            画像を保存
-          </button>
-          <a id="kyouPostX" class="shareBtn" target="_blank" rel="noopener"
-            >Xへポスト</a
-          >
-          <button id="kyouCopyUrl" class="shareBtn" type="button">
-            URLをコピー
-          </button>
+          <button id="kyouShareImg" class="shareBtn" type="button">画像で共有</button>
+          <button id="kyouSaveImg" class="shareBtn" type="button">画像を保存</button>
+          <a id="kyouPostX" class="shareBtn" target="_blank" rel="noopener">Xへポスト</a>
+          <button id="kyouCopyUrl" class="shareBtn" type="button">URLをコピー</button>
           <div class="shareHint">
             ※PCは共有先が出ない場合があります。その時は「画像を保存」→投稿が確実。
           </div>
@@ -610,7 +685,6 @@
       // =========================
       const PAYPAL_CLIENT_ID =
         "ASOzo8Ol7R8omQLgiD1IcyAQl_dHXPG4EeU9FQv53AYm6FHA6WEyyulpAo8Z8jZCHuxRTaOmy-LIdn-Z";
-      const OSAISEN_AMOUNT = "100";
       const OSAISEN_CURRENCY = "JPY";
 
       // =========================
@@ -645,6 +719,11 @@
       const paypalButtons = document.getElementById("paypalButtons");
       const paypalStatus = document.getElementById("paypalStatus");
 
+      const amountChips = Array.from(document.querySelectorAll(".amountChip"));
+      const freeAmountRow = document.getElementById("freeAmountRow");
+      const freeAmountInput = document.getElementById("freeAmountInput");
+
+      let selectedOsaisenMode = "100";
       let paypalSdkLoadingPromise = null;
       let paypalButtonsRendered = false;
 
@@ -656,6 +735,49 @@
         paypalStatus.textContent = text || "";
         paypalStatus.classList.toggle("error", !!isError);
       }
+
+      function setSelectedAmountMode(mode) {
+        selectedOsaisenMode = mode;
+
+        amountChips.forEach((chip) => {
+          chip.classList.toggle("selected", chip.dataset.amount === mode);
+        });
+
+        if (mode === "free") {
+          freeAmountRow.hidden = false;
+        } else {
+          freeAmountRow.hidden = true;
+        }
+      }
+
+      function getSelectedOsaisenAmount() {
+        if (selectedOsaisenMode === "free") {
+          const raw = String(freeAmountInput.value || "").trim();
+          const n = Number(raw);
+
+          if (!Number.isFinite(n) || !Number.isInteger(n)) {
+            throw new Error("賽銭額を整数で入力してください");
+          }
+
+          if (n < 100) {
+            throw new Error("賽銭額は100円以上にしてください");
+          }
+
+          if (n > 10000) {
+            throw new Error("賽銭額は10000円以下にしてください");
+          }
+
+          return String(n);
+        }
+
+        return String(selectedOsaisenMode);
+      }
+
+      amountChips.forEach((chip) => {
+        chip.addEventListener("click", () => {
+          setSelectedAmountMode(chip.dataset.amount);
+        });
+      });
 
       function getUnlockKey() {
         let key = localStorage.getItem("unlock_key");
@@ -779,11 +901,20 @@
             },
 
             createOrder: async () => {
+              let amount;
+
+              try {
+                amount = getSelectedOsaisenAmount();
+              } catch (e) {
+                setPaypalStatus(e?.message || "賽銭額を確認してください", true);
+                throw e;
+              }
+
               setPaypalStatus("注文を作成中...");
               const json = await postJson(
                 "/.netlify/functions/create-paypal-order",
                 {
-                  amount: OSAISEN_AMOUNT,
+                  amount,
                   currency: OSAISEN_CURRENCY,
                   unlockKey,
                 },
@@ -940,7 +1071,6 @@
         osaisenOverlay.classList.remove("show");
       }
 
-      // 旧 paid=1 戻り方式の保険
       function handlePaidParam() {
         const u = new URL(location.href);
         const paid = (u.searchParams.get("paid") || "").trim();

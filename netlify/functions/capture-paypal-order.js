@@ -50,6 +50,9 @@ exports.handler = async (event) => {
     const status = captureJson?.status || "";
     const purchaseUnit = captureJson?.purchase_units?.[0];
     const capturedReferenceId = String(purchaseUnit?.reference_id || "").trim();
+    const capturedAmount = purchaseUnit?.payments?.captures?.[0]?.amount?.value || "";
+    const capturedCurrency =
+      purchaseUnit?.payments?.captures?.[0]?.amount?.currency_code || "";
 
     if (status !== "COMPLETED") {
       console.error("capture not completed:", captureJson);
@@ -71,8 +74,9 @@ exports.handler = async (event) => {
       ok: true,
       status,
       orderID,
-      captureID:
-        purchaseUnit?.payments?.captures?.[0]?.id || "",
+      captureID: purchaseUnit?.payments?.captures?.[0]?.id || "",
+      amount: capturedAmount,
+      currency: capturedCurrency,
     });
   } catch (err) {
     console.error(err);

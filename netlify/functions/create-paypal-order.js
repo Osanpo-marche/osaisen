@@ -17,6 +17,24 @@ exports.handler = async (event) => {
       return json(400, { ok: false, error: "unlockKey_required" });
     }
 
+    const amountNumber = Number(amount);
+
+    if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+      return json(400, { ok: false, error: "invalid_amount" });
+    }
+
+    if (!Number.isInteger(amountNumber)) {
+      return json(400, { ok: false, error: "amount_must_be_integer" });
+    }
+
+    if (amountNumber < 100) {
+      return json(400, { ok: false, error: "amount_too_small" });
+    }
+
+    if (amountNumber > 10000) {
+      return json(400, { ok: false, error: "amount_too_large" });
+    }
+
     const clientId = process.env.PAYPAL_CLIENT_ID;
     const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
 
@@ -39,7 +57,7 @@ exports.handler = async (event) => {
             reference_id: unlockKey,
             amount: {
               currency_code: currency,
-              value: amount,
+              value: String(amountNumber),
             },
             description: "今日の大吉 賽銭",
           },
