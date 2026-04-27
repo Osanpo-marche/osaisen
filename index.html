@@ -37,7 +37,8 @@
 
         --shift-x: 35px;
         --shift-y: 0px;
-        background-position: calc(50% + var(--shift-x)) calc(40% + var(--shift-y));
+        background-position: calc(50% + var(--shift-x))
+          calc(40% + var(--shift-y));
 
         transform: scale(1);
         transform-origin: 50% 50%;
@@ -81,7 +82,8 @@
         #bgZoom {
           --shift-x: 40px;
           --shift-y: 0px;
-          background-position: calc(50% + var(--shift-x)) calc(55% + var(--shift-y));
+          background-position: calc(50% + var(--shift-x))
+            calc(55% + var(--shift-y));
           animation: toriiApproachMobile 6s ease-out forwards;
         }
 
@@ -513,6 +515,15 @@
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
       }
 
+      #paypalGuide {
+        margin: 0 0 10px;
+        color: #222;
+        font-size: 12px;
+        line-height: 1.6;
+        letter-spacing: 0.04em;
+        text-align: left;
+      }
+
       #paypalButtons {
         margin-top: 0;
         min-height: 46px;
@@ -595,10 +606,18 @@
         <p id="resultMsg">今日はもう勝っている。</p>
 
         <div class="shareRow">
-          <button id="daiShareImg" class="shareBtn" type="button">画像で共有</button>
-          <button id="daiSaveImg" class="shareBtn" type="button">画像を保存</button>
-          <a id="daiPostX" class="shareBtn" target="_blank" rel="noopener">Xへポスト</a>
-          <button id="daiCopyUrl" class="shareBtn" type="button">URLをコピー</button>
+          <button id="daiShareImg" class="shareBtn" type="button">
+            画像で共有
+          </button>
+          <button id="daiSaveImg" class="shareBtn" type="button">
+            画像を保存
+          </button>
+          <a id="daiPostX" class="shareBtn" target="_blank" rel="noopener"
+            >Xへポスト</a
+          >
+          <button id="daiCopyUrl" class="shareBtn" type="button">
+            URLをコピー
+          </button>
 
           <div class="shareHint">
             お神籤は１日１度しかひけません。<br />
@@ -625,11 +644,23 @@
           <div class="osaisenAmountLabel">賽銭の額を選ぶ</div>
 
           <div class="osaisenAmountChoices">
-            <button type="button" class="amountChip selected" data-amount="100">100円</button>
-            <button type="button" class="amountChip" data-amount="300">300円</button>
-            <button type="button" class="amountChip" data-amount="500">500円</button>
-            <button type="button" class="amountChip" data-amount="1000">1000円</button>
-            <button type="button" class="amountChip amountChipFree" data-amount="free">
+            <button type="button" class="amountChip selected" data-amount="100">
+              100円
+            </button>
+            <button type="button" class="amountChip" data-amount="300">
+              300円
+            </button>
+            <button type="button" class="amountChip" data-amount="500">
+              500円
+            </button>
+            <button type="button" class="amountChip" data-amount="1000">
+              1000円
+            </button>
+            <button
+              type="button"
+              class="amountChip amountChipFree"
+              data-amount="free"
+            >
               自由に入れる
             </button>
           </div>
@@ -648,11 +679,17 @@
         </div>
 
         <div class="osaisen-actions">
-          <button id="osaisenGo" class="btn primary" type="button">賽銭する</button>
+          <button id="osaisenGo" class="btn primary" type="button">
+            賽銭する
+          </button>
         </div>
 
         <div id="paypalArea" aria-live="polite">
           <div id="paypalShell">
+            <p id="paypalGuide">
+              PayPal以外で支払う方は、下のカードアイコンを押してください。<br />
+              表示に数秒かかる場合があります。
+            </p>
             <div id="paypalButtons"></div>
             <div id="paypalStatus"></div>
           </div>
@@ -664,10 +701,18 @@
         </div>
 
         <div class="shareRow">
-          <button id="kyouShareImg" class="shareBtn" type="button">画像で共有</button>
-          <button id="kyouSaveImg" class="shareBtn" type="button">画像を保存</button>
-          <a id="kyouPostX" class="shareBtn" target="_blank" rel="noopener">Xへポスト</a>
-          <button id="kyouCopyUrl" class="shareBtn" type="button">URLをコピー</button>
+          <button id="kyouShareImg" class="shareBtn" type="button">
+            画像で共有
+          </button>
+          <button id="kyouSaveImg" class="shareBtn" type="button">
+            画像を保存
+          </button>
+          <a id="kyouPostX" class="shareBtn" target="_blank" rel="noopener"
+            >Xへポスト</a
+          >
+          <button id="kyouCopyUrl" class="shareBtn" type="button">
+            URLをコピー
+          </button>
           <div class="shareHint">
             ※PCは共有先が出ない場合があります。その時は「画像を保存」→投稿が確実。
           </div>
